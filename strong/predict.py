@@ -22,7 +22,7 @@ def predict(cfg):
 
     ckpt_path = pathlib.Path(cfg.ckpt_path)
     if not ckpt_path.is_absolute():
-        ckpt_path = (pathlib.Path(hydra.utils.get_original_cwd()) / ckpt_path)
+        ckpt_path = (pathlib.Path(hydra.utils.get_original_cwd()) / ckpt_path)  
 
     if 'paper_weights' in cfg.keys():
         with open_dict(cfg):
@@ -35,22 +35,24 @@ def predict(cfg):
         lightning_module = UTMOSLightningModule.load_from_checkpoint(ckpt_path,cfg=cfg,paper_weight=cfg.paper_weights)
         lightning_module.cfg
     else:
-        lightning_module = UTMOSLightningModule.load_from_checkpoint(ckpt_path)
-    print(lightning_module.cfg)
+        lightning_module = UTMOSLightningModule.load_from_checkpoint(ckpt_path,cfg=cfg)
     datamodule = DataModule(lightning_module.cfg)
     test_datamodule = TestDataModule(cfg=lightning_module.cfg, i_cv=0, set_name='test')
+    ### どっちに対してもtestするのか。
     trainer.test(
         lightning_module,
         verbose=True,
         datamodule=datamodule,
         ckpt_path=ckpt_path
     )
+    print("================================")
     trainer.test(
         lightning_module,
         verbose=True,
         datamodule=test_datamodule,
         ckpt_path=ckpt_path
     )
+    print("+++++++++++++++++++++++++")
 
 if __name__ == "__main__":
     predict()

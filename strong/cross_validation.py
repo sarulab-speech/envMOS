@@ -55,8 +55,10 @@ def fit_and_test(cfg, k_cv, i_cv):
         callbacks=callbacks,
         logger=loggers,
     )
-
+    ### kとiの値で、いい感じに学習データを返してくれる。
     datamodule = CVDataModule(cfg=cfg, k_cv=k_cv, i_cv=i_cv)
+    ### val, testは何のために？
+    ### とりま、val, testはいらないけどtestしているってことでいいか。
     val_datamodule = TestDataModule(cfg=cfg, i_cv=i_cv, set_name='val')
     test_datamodule = TestDataModule(cfg=cfg, i_cv=i_cv, set_name='test')
     lightning_module = UTMOSLightningModule(cfg)        

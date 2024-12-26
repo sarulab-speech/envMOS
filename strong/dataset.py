@@ -28,8 +28,11 @@ class DataModule(pl.LightningDataModule):
         join = os.path.join
         data_sources = self.cfg.dataset.data_sources
         self.wavdir = {} 
+        ### 辞書ができる。{"name" : main, "train_mos_list_path": data/phase1-main/DATA/sets/TRAINSET}みたいな。
         for datasource in data_sources:
+            ##  wavdir["main"] = cwd/data/phase1-main/DATA/wav/
             self.wavdir[datasource.name] = join(ocwd, datasource['wav_dir'])  
+        ### use_data.*** に反してたら、リストから除外
         for idx, datasource in enumerate(data_sources):
             if not self.cfg.dataset.use_data.external and datasource['name'] == 'external':
                 data_sources.pop(idx)
@@ -39,45 +42,72 @@ class DataModule(pl.LightningDataModule):
         for idx, datasource in enumerate(data_sources):
             if not self.cfg.dataset.use_data.ood and datasource['name'] == 'ood':
                 data_sources.pop(idx)
+        # 一つのdatasource は、 "name": main から "outfile": answer-main.csv まで。
+        # name: "main"
+        # train_mos_list_path: data/phase1-main/DATA/sets/TRAINSET
+        # val_mos_list_path: data/phase1-main/DATA/sets/DEVSET
+        # test_mos_list_path: data/phase1-main/DATA/sets/test.scp
+        # wav_dir: data/phase1-main/DATA/wav/
+        # data_dir: data/phase1-main/DATA
+        # outfile: answer-main.csv
+        # の辞書
         self.datasources = data_sources
-
+        ### train_mos_list_path から、*.wavとMOS値入手
+        # for 文を使っているが、train_mos_list_path: data/phase1-main/DATA/sets/TRAINSET　のみに対して反応。
+        # main, odd, external のそれぞれのtrain_path
         train_paths = [join(ocwd,data_source.train_mos_list_path) for data_source in data_sources if hasattr(data_source,'train_mos_list_path')]
         val_paths = [join(ocwd,data_source.val_mos_list_path) for data_source in data_sources if hasattr(data_source,'val_mos_list_path')]
+        ### data_source.nameは、main, oddとか。
         domains_train = [data_source.name for data_source in data_sources if hasattr(data_source,'train_mos_list_path')]
         domains_val = [data_source.name for data_source in data_sources if hasattr(data_source,'val_mos_list_path')]
 
         self.mos_df = {}
+        ### TRAINSETから、扱いやすい形のcsvへ加工
+        ### ,filename,rating,listener_name,domain,listener_id,domain_id 
         self.mos_df['train'] = self.get_mos_df(train_paths,domains_train,self.cfg.dataset.only_mean)
         self.mos_df['val'] = self.get_mos_df(val_paths,domains_val,only_mean=True,id_reference=self.mos_df['train'])
+        ###  ,filename,rating,listener_name,domain,listener_id,domain_id
+        ### 9,sys0eb39-utt4745b38.wav,3.0,oJgQdRV65lnW,main,9,0
         self.mos_df['train'].to_csv("listener_embedding_lookup.csv")
        
 
     def get_mos_df(self, paths:List[str], domains:List[str],only_mean=False,id_reference=None):
         assert len(domains) == len(paths)
         dfs = [] 
+        ## main, odd, external 全て含まれてたら全部合わせた dfsができる。
         for path, domain in zip(paths,domains):
+            # train_path, val は 'sysID', 'filename','rating', 'ignore', 'listener_info'
+            #                    sys0eb39,sys0eb39-utt4870f4a.wav,3,VDP1ovyrBzg8_1,{}_18-29_ZPGlxO3OmLRp_Female_Valid_1_No
+            # 
             df = pd.read_csv(path,names=['sysID', 'filename','rating', 'ignore', 'listener_info'])
             listener_df = pd.DataFrame()
             listener_df['filename'] = df['filename']
             listener_df['rating'] = df['rating']
+            # ZPGlxO3OmLRp
             listener_df['listener_name'] = df['listener_info'].str.split('_').str[2]
             listener_df['domain'] = domain
+            # 音ファイル単位でのmean
             mean_df = pd.DataFrame(listener_df.groupby('filename',as_index=False)['rating'].mean())
             mean_df['listener_name']= f"MEAN_LISTENER_{domain}"
             mean_df['domain'] = domain
             if only_mean:
                 dfs.append(mean_df)
             else:
+                ### 複数のappend みたいな感じ。 
                 dfs.extend([listener_df,mean_df])
             
         return_df = pd.concat(dfs,ignore_index=True)
         if id_reference is None:
+            ### 数値化 [a,b,c,a] → [0, 1, 2, 0]に。
             return_df['listener_id'] = return_df["listener_name"].factorize()[0]
             return_df['domain_id'] = return_df['domain'].factorize()[0]
         else:
             listener_id = []
             domain_id = []
             for idx, row in return_df.iterrows():
+                # id_referenceの["listener_name"] と rowの["listener_name"]が一致する 行を抜き出す。そのlistener_idを取得。
+                # for ループで、main, odd, external が順に見られるが、MEAN_LISTENER_main が同じになることはない。mainの部分が違うので。
+                # これを各行について行う。
                 listener_id.append( id_reference[id_reference['listener_name'] == row['listener_name']]['listener_id'].iloc[0])
                 domain_id.append(id_reference[id_reference['domain'] == row['domain']]['domain_id'].iloc[0])
             return_df['listener_id'] = listener_id
@@ -93,7 +123,9 @@ class DataModule(pl.LightningDataModule):
         )
         return ds
     def get_loader(self, phase, batchsize):
+        ### データゲット。
         ds = self.get_ds(phase)
+        ### batchsizeとか指定してdataloaderへ。
         dl = DataLoader(
             ds,
             batchsize,
@@ -145,13 +177,14 @@ class TestDataModule(DataModule):
 
         train_paths = [join(ocwd,data_source.train_mos_list_path) for data_source in data_sources if hasattr(data_source,'train_mos_list_path')]
         domains_train = [data_source.name for data_source in data_sources if hasattr(data_source,'train_mos_list_path')]
-
+        ### 今が valモードか、testモードかでpathの場合分け。
         if self.set_name == 'val': 
             mos_list_path = 'val_mos_list_path'
         elif self.set_name == 'test':
             mos_list_path = 'test_mos_list_path'
         elif self.set_name == 'test_post':
             mos_list_path = 'test_post_mos_list_path'
+        ### testかval。 test.scp or DEVSETへのpath. それが、main, odd, externalの３つ分。
         val_paths = [join(ocwd,getattr(data_source, mos_list_path)) for data_source in data_sources if hasattr(data_source, mos_list_path)]
         domains_val = [data_source.name for data_source in data_sources if hasattr(data_source, mos_list_path)]
 
@@ -159,8 +192,10 @@ class TestDataModule(DataModule):
         self.mos_df['train'] = self.get_mos_df(train_paths,domains_train,self.cfg.dataset.only_mean)
         
         if self.set_name == 'val':
+            ### なんでonly_meanがtrue?
             self.mos_df['val'] = self.get_mos_df(val_paths,domains_val,only_mean=True,id_reference=self.mos_df['train'])
         elif self.set_name == 'test':
+            ### only_mean == False かな。trainと同じ話者からはidを参考にできるようにしているのか。
             self.mos_df['val'] = self.get_test_df(val_paths,domains_val,id_reference=self.mos_df['train'])
         elif self.set_name == 'test_post':
             self.mos_df['val'] = self.get_mos_df(val_paths,domains_val,only_mean=True,id_reference=self.mos_df['train'])
@@ -169,6 +204,7 @@ class TestDataModule(DataModule):
     def get_mos_df(self, paths:List[str], domains:List[str],only_mean=False,id_reference=None):
         return_df = super().get_mos_df(paths, domains, only_mean, id_reference)
         return_df['i_cv'] = self.i_cv
+        ### testとか。
         return_df['set_name'] = self.set_name
         return return_df
     
@@ -176,11 +212,13 @@ class TestDataModule(DataModule):
         assert len(domains) == len(paths)
         dfs = [] 
         for path, domain in zip(paths,domains):
+            ### open test.scp
             with open(path) as f:
                 wavlist = [wavline.strip() for wavline in f]
             df = pd.DataFrame()
             df['filename'] = wavlist
             df['rating'] = -1
+            ### mean_listerに評価させている？
             df['listener_name'] = f'MEAN_LISTENER_{domain}'
             df['domain'] = domain
             dfs.append(df)
@@ -188,6 +226,7 @@ class TestDataModule(DataModule):
         listener_id = []
         domain_id = []
         for idx, row in return_df.iterrows():
+            ### mean_listerに評価させている。
             listener_id.append(id_reference[id_reference['listener_name'] == row['listener_name']]['listener_id'].iloc[0])
             domain_id.append(id_reference[id_reference['domain'] == row['domain']]['domain_id'].iloc[0])
         return_df['listener_id'] = listener_id
@@ -211,12 +250,19 @@ class CVDataModule(DataModule):
         
         target_id = {}
         for idx, datasource in enumerate(self.datasources):
+            ### {"main": idx}...
             target_id[datasource['name']] = idx
+        ### 例えば、main だけを抜き出す
         target_df = self.mos_df["train"][self.mos_df["train"]['domain'] == self.fold_target_datset]
+        ### odd, external
         not_target_df = self.mos_df["train"][self.mos_df["train"]['domain'] != self.fold_target_datset]
+        ### frac=1 は100%
         shuffled_train_df = target_df.sample(frac=1,random_state=self.seed_cv)
+        ### k個に分割 [0_df, ... , k_df]のリスト
         chuncked_train_df = np.array_split(shuffled_train_df,self.k_cv)
+        ### i_cv番目の分割について、"listener_name"に"MEAN_LISTENER"を含むもののみ抜き出す
         self.mos_df['val'] = chuncked_train_df[self.i_cv][chuncked_train_df[self.i_cv]['listener_name'].str.contains("MEAN_LISTENER")]
+        ### i_cv番目のdfをリストから抜き出す。
         chuncked_train_df.pop(self.i_cv)
         self.mos_df['val'] = self.mos_df['val'].reset_index()
         chuncked_train_df.append(not_target_df)
@@ -224,9 +270,12 @@ class CVDataModule(DataModule):
         print("-"*20)
         print(len(self.mos_df['train']))
         print("-"*20)
+        ### self.mos_df["train"] と self.mos_df['val']) の間で重複する "filename" を持つ行を削除。同じwavは使わないということか
+        ### クロスバリデーションってそうだっけ? testだからそりゃそうか。
         self.mos_df["train"] = self.mos_df["train"][~self.mos_df["train"]["filename"].isin(self.mos_df['val']["filename"])]
         print(len(self.mos_df['train']))
         print("-"*20)
+        #### train, val のデータを読み込んだやつから作ったのか。
         
     
     def get_mos_df(self, paths:List[str], domains:List[str],only_mean=False,id_reference=None):
@@ -248,17 +297,23 @@ class MyDataset(Dataset):
         # calc mean score by utterance
         sys_ratings = defaultdict(list)
         utt_ratings = defaultdict(list)
+        ### 行ごとに
         for _, row in mos_df.iterrows():
             wavname = row["filename"]
+            ### sys0eb39-utt45dc367.wav
+            ### utt → utt45dc367
+            ### sys → sys0eb39
             utt_ratings[wavname.split("-")[1].split(".")[0]].append(row["rating"])
             sys_ratings[wavname.split("-")[0]].append(row["rating"])
         self.utt_avg_score_table = {}
         self.sys_avg_score_table = {}
+        ### 発話単位、システム単位で平均
         for key in utt_ratings:
             self.utt_avg_score_table[key] = sum(utt_ratings[key])/len(utt_ratings[key])
         for key in sys_ratings:
             self.sys_avg_score_table[key] = sum(sys_ratings[key])/len(sys_ratings[key])
 
+        ### dataset.PhonemeData, dataset.NormalizeScore, dataset.AugmentWav, dataset.SliceWav が additional_data
         for i in range(len(self.cfg.dataset.additional_datas)):
             self.additional_datas.append(
                 hydra.utils.instantiate(
@@ -270,16 +325,21 @@ class MyDataset(Dataset):
             )
 
     def __getitem__(self, idx):
+        ### 行
         selected_row = self.mos_df.iloc[idx]
         wavname = selected_row['filename']
         domain = selected_row['domain']
         wavpath = os.path.join(self.wavdir[domain], wavname)
+        ### 波形
         wav = torchaudio.load(wavpath)[0]
         score = selected_row['rating']
         domain_id = selected_row['domain_id']
         listener_id = selected_row['listener_id']
+        ### i_cvはクロスバリデーションの時にどうやって使うんだ
         i_cv = selected_row['i_cv'] if 'i_cv' in selected_row else -1
+        ### test, val, fold　など
         set_name = selected_row['set_name'] if 'set_name' in selected_row else ''
+        ### 今読み込んでいるwavについて、その発話、システムでの平均取得
         utt_avg_score = self.utt_avg_score_table[wavname.split("-")[1].split(".")[0]]
         sys_avg_score = self.sys_avg_score_table[wavname.split("-")[0]]
         data = {
@@ -294,6 +354,8 @@ class MyDataset(Dataset):
             'sys_avg_score': sys_avg_score
         }
         for additional_data_instances in self.additional_datas:
+            ### dataに対して、additional_data_instancesの各処理を施す。
+            ### 同じkeyを持つものは上書き。ないものは追加。
             data.update(additional_data_instances(data))
         return data
 
@@ -301,6 +363,7 @@ class MyDataset(Dataset):
         return len(self.mos_df)
 
     def collate_fn(self, batch):  # zero padding
+        ### batchないの全てを開く。
         wavs = [b['wav'] for b in batch]
         scores = [b['score'] for b in batch]
         wavnames = [b['wavname'] for b in batch]
@@ -312,21 +375,26 @@ class MyDataset(Dataset):
         sys_avg_scores = [b['sys_avg_score'] for b in batch]
         wavs = list(wavs)
         max_len = max(wavs, key=lambda x: x.shape[1]).shape[1]
+        ### wavの長さを取得
         wavs_lengths = torch.from_numpy(np.array([wav.size(0) for wav in wavs]))
         output_wavs = []
         if self.padding_mode == 'zero-padding':
             for wav in wavs:
                 amount_to_pad = max_len - wav.shape[1]
                 padded_wav = torch.nn.functional.pad(
+                    ### 末尾にpadding
                     wav, (0, amount_to_pad), "constant", 0)
                 output_wavs.append(padded_wav)
         else:
             for wav in wavs:
                 amount_to_pad = max_len - wav.shape[1]
+                ### 縦方向に1, 横方向に 1+amount_to_pad//wav.size(1) repeatしている。繰り返してる。
                 padding_tensor = wav.repeat(1,1+amount_to_pad//wav.size(1))
                 output_wavs.append(torch.cat((wav,padding_tensor[:,:amount_to_pad]),dim=1))
         output_wavs = torch.stack(output_wavs, dim=0)
         scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(scores)], dim=0)
+        ### 中身をtorch.float の tensorに変換。その後、リストにして、stackでテンソルに。
+        ### 全体を通してやりたいことは、中身をtensorに変換かな。
         utt_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(utt_avg_scores)], dim=0)
         sys_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(sys_avg_scores)], dim=0)
         domains = torch.stack([torch.tensor(x) for x in list(domains)], dim=0)
@@ -345,6 +413,9 @@ class MyDataset(Dataset):
             'set_name': set_names
         } # judge id, domain, averaged score
         for additional_data_instance in self.additional_datas:
+            ### このcollate_n は、AdditionalDataBase()内の関数。
+            ### wav augumentationとかは、__get__itemのところでできているので問題なし。
+            ### ここのcollate_fnは、NormalizeScore, AugumentWavとかは、空の辞書を返す。
             additonal_collated_batch = additional_data_instance.collate_fn(batch)
             collated_batch.update(additonal_collated_batch)
         return collated_batch
@@ -352,7 +423,7 @@ class MyDataset(Dataset):
 class AdditionalDataBase():
     def __init__(self, cfg=None) -> None:
         self.cfg = cfg
-
+    ### 呼び出された時に、process_dataされた値を返す。ここでは、wav augumentationとか。
     def __call__(self, data: Dict[str, Any]):
         return self.process_data(data)
 
@@ -362,7 +433,7 @@ class AdditionalDataBase():
     def collate_fn(self, batch):
         return dict()
 
-
+### なんで、process_data, collate_fnが違うのだろう。
 class PhonemeData(AdditionalDataBase):
     def __init__(self, transcription_file_path: str, with_reference=True, cfg=None,phase='train') -> None:
         super().__init__(cfg)
@@ -376,16 +447,21 @@ class PhonemeData(AdditionalDataBase):
 
     def process_data(self, data: Dict[str, Any]):
         wavname = data['wavname']
+        ### そのwavの書き起こし取得
+        ### h aʊ ɛ v ɚ ð ə b æ k l æ ʃ h æ z əl l ɹ ɛ d i b ɪ ɡ ʌ n　みたいな。
         phonemes = self.text_df[self.text_df['wav_name']
                                 == wavname]['transcription']
         assert len(phonemes) == 1, 'wavname {} has more than one text'.format(
             wavname)
         try:
+            ### どのsymbolに対応しているかわかれば良いので、index (位置)を取得している。
+            ### phonemes (h aʊ ɛ v) → 数値のリストにしている。
             phonemes = [symbols.symbols.index(p) for p in phonemes.iloc[0]]
         except:
             print(wavname, phonemes)
             raise ValueError
         if self.with_reference:
+            ### 正しい音素列 reference
             reference = self.text_df[self.text_df['wav_name']
                                      == wavname]['reference']
             assert len(reference) == 1, 'wavname {} has more than one text'.format(
@@ -404,7 +480,7 @@ class PhonemeData(AdditionalDataBase):
     def collate_fn(self, batch):
         phonemes = [b['phonemes'] for b in batch]
         references = [b['reference'] for b in batch]
-
+        ### p は、[1, 2, 3, 1, 2]などのindexのリスト。phonemeの長さ。
         lens = [len(p) for p in phonemes]
         phonemes = [torch.tensor(p) for p in phonemes]
         phoneme_batch = torch.nn.utils.rnn.pad_sequence(
@@ -428,7 +504,7 @@ class PhonemeData(AdditionalDataBase):
             }
 
 
-
+### 標準化
 class NormalizeScore(AdditionalDataBase):
     def __init__(self, org_max, org_min,normalize_to_max,normalize_to_min,phase,cfg=None) -> None:
         super().__init__()
@@ -441,6 +517,8 @@ class NormalizeScore(AdditionalDataBase):
         score = (score - (self.org_max + self.org_min)/2.0) / (self.normalize_to_max - self.normalize_to_min)
         return {'score': score}
 
+### データ拡張か。でも、音ファイルだけなのか。一回に入力する音ファイルを２つにするだけで、音、MOS値とかの組みが入るわけではないのか？
+### 毎回ある変化を加えたwavを入力しているのか。じゃあ元と全く同じwavは入れてないんだ。 trainデータを何周かするから、ってことか？
 class AugmentWav(AdditionalDataBase):
     def __init__(self,pitch_shift_minmax:Dict[str, int],random_time_warp_f,phase='train', cfg=None) -> None:
         super().__init__(cfg)
@@ -451,11 +529,13 @@ class AugmentWav(AdditionalDataBase):
         self.phase = phase
     def process_data(self, data: Dict[str, Any]):
         if self.phase=='train':
+            ### 変更を加えるのか。
             augmented_wav = self.chain(data['wav'])
         else:
             augmented_wav = data['wav']
         return {'wav': augmented_wav}
-
+    
+### 長すぎるwavを切ってしまう。
 class SliceWav(AdditionalDataBase):
     def __init__(self, max_wav_seconds,cfg=None,phase=None) -> None:
         super().__init__()

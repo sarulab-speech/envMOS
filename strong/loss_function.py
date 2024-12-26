@@ -14,11 +14,15 @@ class ContrastiveLoss(nn.Module):
         self.margin = margin
     
     def forward(self, pred_score, gt_score):
+        ### 3次元以上なら。 batch x flame x score
         if pred_score.dim() > 2:
+            ### batch x score に squeeze(1)なので、 batch の数だけ、scoreが並んでるのか。
             pred_score = pred_score.mean(dim=1).squeeze(1)
         # pred_score, gt_score: tensor, [batch_size]  
         gt_diff = gt_score.unsqueeze(1) - gt_score.unsqueeze(0)
+        # 差行列になるらしい。
         pred_diff = pred_score.unsqueeze(1) - pred_score.unsqueeze(0)
+        ### 行列間で差をとっているのか。
         loss = torch.maximum(torch.zeros(gt_diff.shape).to(gt_diff.device), torch.abs(pred_diff - gt_diff) - self.margin) 
         loss = loss.mean().div(2)
         return loss
@@ -37,7 +41,8 @@ class ClippedMSELoss(nn.Module):
 
 
     def forward_criterion(self, y_hat, label):
-
+        ### batch x flame x 1 (score)
+        ### squeeze で最後の次元を削除
         y_hat = y_hat.squeeze(-1)
         loss = self.criterion(y_hat, label)
         threshold = torch.abs(y_hat - label) > self.tau

@@ -21,15 +21,19 @@ class UTMOSLightningModule(pl.LightningModule):
         self.save_hyperparameters()
     
     def construct_model(self):
+        ### model.load_ssl_model, model.PhonemeEncoder, model.DomainEmbedding
         self.feature_extractors = nn.ModuleList([
             hydra.utils.instantiate(feature_extractor) for feature_extractor in self.cfg.model.feature_extractors
         ])
+        ### それぞれの層での出力次元
         output_dim = sum([ feature_extractor.get_output_dim() for feature_extractor in self.feature_extractors])
         output_layers = []
+        ### output_layers は  model.LDConditioner, model.Projection, torch.nn.ReLU
         for output_layer in self.cfg.model.output_layers:
             output_layers.append(
                 hydra.utils.instantiate(output_layer,input_dim=output_dim)
             )
+            ### 最終出力の次元
             output_dim = output_layers[-1].get_output_dim()
 
         self.output_layers = nn.ModuleList(output_layers)
@@ -40,6 +44,7 @@ class UTMOSLightningModule(pl.LightningModule):
         self.domain_table = {}
         data_sources = self.cfg.dataset.data_sources
         for idx, datasource in enumerate(data_sources):
+            ### external が Falseなら使わない
             if not self.cfg.dataset.use_data.external and datasource['name'] == 'external':
                 data_sources.pop(idx)
         for idx, datasource in enumerate(data_sources):
@@ -51,18 +56,47 @@ class UTMOSLightningModule(pl.LightningModule):
         for i, datasource in enumerate(data_sources):
             if not hasattr(datasource,'val_mos_list_path'):
                 continue
+            ### table1 → main, table2 → oddとか
             self.domain_table[i] = datasource["name"]
 
     def forward(self, inputs):
         outputs = {}
         for feature_extractor in self.feature_extractors:
+            ### {"ssl-feature":x}, {"phoneme-feature": feature}, {"domain-feature": self.embedding(batch['domains'])}
+            ### 各特徴量抽出器は、全てのデータ(wav, phonomeとか)をbatchとして受け取るが、その中で必要なもの (wav, phoneme)しか処理しない。
             outputs.update(feature_extractor(inputs))
         x = outputs
+        ### {"domain-feature": self.embedding(batch['domains'])}, 
         for output_layer in self.output_layers:
             x = output_layer(x,inputs)
+        ### 最終的には、ProjectionからのMOS予測値が戻ってくる。
         return x
+    ### forward とは別なのかな？いつ呼び出されるんだ？
+
+        # # enable grads
+        # torch.set_grad_enabled(True)
+
+        # losses = []
+        # for batch in train_dataloader:
+        #     # calls hooks like this one
+        #     on_train_batch_start()
+
+        #     # train step
+        #     loss = training_step(batch)
+
+        #     # clear gradients
+        #     optimizer.zero_grad()
+
+        #     # backward
+        #     loss.backward()
+
+        #     # update parameters
+        #     optimizer.step()
+
+        #     losses.append(loss)
 
     def training_step(self, batch, batch_idx):
+        ### self()はforwardと同じ。
         outputs = self(batch)
         loss = self.criterion(outputs, batch['score'])
         self.log(
@@ -75,6 +109,7 @@ class UTMOSLightningModule(pl.LightningModule):
         loss = self.criterion(outputs, batch['score'])
         if outputs.dim() > 1:
             outputs = outputs.mean(dim=1).squeeze(-1)
+        # このreturnがlogに残るのか
         return {
             "loss": loss,
             "outputs": outputs.cpu().numpy()[0]*2 +3.0,
@@ -244,7 +279,7 @@ class UTMOSLightningModule(pl.LightningModule):
             print("[SYSTEM] Linear correlation coefficient= %f" % LCC[0][1])
             print("[SYSTEM] Spearman rank correlation coefficient= %f" % SRCC[0])
             print("[SYSTEM] Kendall Tau rank correlation coefficient= %f" % KTAU[0])
-
+        ### これは何？
         return predictions, SRCC[0], MSE
 
 
