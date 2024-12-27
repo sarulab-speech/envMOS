@@ -23,8 +23,8 @@ optimizer:
   lr: 2e-5
 scheduler:
   _target_: transformers.get_linear_schedule_with_warmup
-  num_warmup_steps: 4000
-  num_training_steps: 15_000
+  num_warmup_steps: 400
+  num_training_steps: 150
 early_stopping:
   patience: 100
 

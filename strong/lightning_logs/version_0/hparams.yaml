@@ -1,0 +1,106 @@
+cfg:
+  dataset:
+    data_dir: data/phase1-main/DATA
+    data_sources:
+    - name: main
+      train_mos_list_path: data/phase1-main/DATA/sets/TRAINSET
+      val_mos_list_path: data/phase1-main/DATA/sets/DEVSET
+      test_mos_list_path: data/phase1-main/DATA/sets/test_mos_list.txt
+      wav_dir: data/phase1-main/DATA/wav/
+      data_dir: data/phase1-main/DATA
+      outfile: answer-main.csv
+    use_data:
+      main: true
+      ood: false
+      external: false
+    datamodule:
+      _target_: dataset.DataModule
+    only_mean: false
+    additional_datas:
+    - _target_: dataset.PhonemeData
+      transcription_file_path: transcriptions_clustered.csv
+      with_reference: true
+    - _target_: dataset.NormalizeScore
+      org_max: 5.0
+      org_min: 1.0
+      normalize_to_max: 1.0
+      normalize_to_min: -1.0
+    - _target_: dataset.AugmentWav
+      pitch_shift_minmax:
+        min: -300
+        max: 300
+      random_time_warp_f: 1.0
+    - _target_: dataset.SliceWav
+      max_wav_seconds: 10
+  model:
+    lightning_module:
+      _target_: lightning_module.BaselineLightningModule
+    WavLM: false
+    feature_extractors:
+    - _target_: model.load_ssl_model
+      cp_path: ../fairseq_checkpoints/wav2vec_small.pt
+    - _target_: model.PhonemeEncoder
+      hidden_dim: 256
+      emb_dim: 256
+      out_dim: 256
+      n_lstm_layers: 3
+      vocab_size: 198
+    - _target_: model.DomainEmbedding
+      n_domains: 3
+      domain_dim: 128
+    output_layers:
+    - _target_: model.LDConditioner
+      judge_dim: 128
+      num_judges: 3000
+    - _target_: model.Projection
+      hidden_dim: 2048
+      activation:
+        _target_: torch.nn.ReLU
+      range_clipping: false
+  train:
+    seed: 1234
+    use_wandb: false
+    model_selection_metric: val_SRCC_system_main
+    train_batch_size: 12
+    val_batch_size: 1
+    test_batch_size: 1
+    out_dir: train_output/
+    trainer_args:
+      max_steps: 15000
+      gpus:
+      - 0
+      deterministic: true
+      auto_select_gpus: false
+      benchmark: true
+      precision: 32
+      gradient_clip_val: 1.0
+      flush_logs_every_n_steps: 10
+      val_check_interval: 0.5
+      accumulate_grad_batches: 2
+    optimizer:
+      _target_: torch.optim.Adam
+      lr: 2.0e-05
+    scheduler:
+      _target_: transformers.get_linear_schedule_with_warmup
+      num_warmup_steps: 400
+      num_training_steps: 150
+    early_stopping:
+      patience: 100
+    criterion:
+      _target_: loss_function.CombineLosses
+      loss_weights:
+      - 1.0
+      - 0.5
+      loss_instances:
+      - _target_: loss_function.ClippedMSELoss
+        criterion:
+          _target_: torch.nn.MSELoss
+          reduction: none
+        tau: 0.25
+        mode: frame
+      - _target_: loss_function.ContrastiveLoss
+        margin: 0.1
+  debug: false
+  deepspeed: false
+  outfile: answer.csv
+  ckpt_path: outputs/2024-12-16/19-01-01/train_output/last.ckpt

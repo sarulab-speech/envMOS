@@ -3,11 +3,11 @@ data_dir: data/phase1-main/DATA
 data_sources: 
   -
     name: "main"
-    train_mos_list_path: data/phase1-main/DATA/sets/TRAINSET
-    val_mos_list_path: data/phase1-main/DATA/sets/DEVSET
-    test_mos_list_path: data/phase1-main/DATA/sets/test.scp
-    wav_dir: data/phase1-main/DATA/wav/
-    data_dir: data/phase1-main/DATA
+    train_mos_list_path: data/sets/train.txt
+    val_mos_list_path: data/sets/train.txt
+    test_mos_list_path: data/phase1-main/DATA/sets/test_mos_list.txt
+    wav_dir: data/wav
+    data_dir: data/
     outfile: answer-main.csv
   -
     name: "ood"
@@ -24,16 +24,13 @@ data_sources:
     data_dir: data/phase1-ood/DATA
 use_data:
   main: True
-  ood: True
-  external: True
+  ood: False
+  external: False
 datamodule: 
   _target_: dataset.DataModule
+#### only_meanは、平均値しか入手できないシナリオのこと。
 only_mean: False
 additional_datas:
-  - 
-    _target_: dataset.PhonemeData
-    transcription_file_path: 'transcriptions_clustered.csv'
-    with_reference: True
   -
     _target_: dataset.NormalizeScore
     org_max: 5.0

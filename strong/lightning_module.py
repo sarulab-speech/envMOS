@@ -1,14 +1,13 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from WavLM import WavLM, WavLMConfig
 import os
 import fairseq
 import numpy as np
 import scipy.stats
 import hydra
 from transformers import AdamW, get_linear_schedule_with_warmup
-from model import load_ssl_model, PhonemeEncoder, DomainEmbedding, LDConditioner, Projection
+from model import SSL_model, PhonemeEncoder, LDConditioner, Projection
 import wandb
 
 

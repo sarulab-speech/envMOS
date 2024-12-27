@@ -79,12 +79,15 @@ class DataModule(pl.LightningDataModule):
             # train_path, val は 'sysID', 'filename','rating', 'ignore', 'listener_info'
             #                    sys0eb39,sys0eb39-utt4870f4a.wav,3,VDP1ovyrBzg8_1,{}_18-29_ZPGlxO3OmLRp_Female_Valid_1_No
             # 
-            df = pd.read_csv(path,names=['sysID', 'filename','rating', 'ignore', 'listener_info'])
+            # df = pd.read_csv(path,names=['sysID', 'filename','rating', 'ignore', 'listener_info'])
+            ### ["idx", "csv_name", "filename", "caption", "temp_flag"]
+            df = pd.read_csv(path,names=["idx", "csv_name", "filename", "rating", "model", "caption", "temp_flag"])
             listener_df = pd.DataFrame()
             listener_df['filename'] = df['filename']
             listener_df['rating'] = df['rating']
             # ZPGlxO3OmLRp
-            listener_df['listener_name'] = df['listener_info'].str.split('_').str[2]
+            # listener_df['listener_name'] = df['listener_info'].str.split('_').str[2]
+            listener_df['listener_name'] = df['csv_name']
             listener_df['domain'] = domain
             # 音ファイル単位でのmean
             mean_df = pd.DataFrame(listener_df.groupby('filename',as_index=False)['rating'].mean())
@@ -303,8 +306,9 @@ class MyDataset(Dataset):
             ### sys0eb39-utt45dc367.wav
             ### utt → utt45dc367
             ### sys → sys0eb39
-            utt_ratings[wavname.split("-")[1].split(".")[0]].append(row["rating"])
-            sys_ratings[wavname.split("-")[0]].append(row["rating"])
+            # utt_ratings[wavname.split("-")[1].split(".")[0]].append(row["rating"])
+            utt_ratings[wavname.split("/")[-1].split(".")[0]].append(row["rating"])
+            sys_ratings[wavname.split("/")[1]].append(row["rating"])
         self.utt_avg_score_table = {}
         self.sys_avg_score_table = {}
         ### 発話単位、システム単位で平均
@@ -328,8 +332,10 @@ class MyDataset(Dataset):
         ### 行
         selected_row = self.mos_df.iloc[idx]
         wavname = selected_row['filename']
-        domain = selected_row['domain']
-        wavpath = os.path.join(self.wavdir[domain], wavname)
+        # domain = selected_row['domain']
+        domain = "main"
+        # wavpath = os.path.join(self.wavdir[domain], wavname)
+        wavpath = self.wavdir[domain]+wavname
         ### 波形
         wav = torchaudio.load(wavpath)[0]
         score = selected_row['rating']
@@ -340,8 +346,10 @@ class MyDataset(Dataset):
         ### test, val, fold　など
         set_name = selected_row['set_name'] if 'set_name' in selected_row else ''
         ### 今読み込んでいるwavについて、その発話、システムでの平均取得
-        utt_avg_score = self.utt_avg_score_table[wavname.split("-")[1].split(".")[0]]
-        sys_avg_score = self.sys_avg_score_table[wavname.split("-")[0]]
+        # utt_avg_score = self.utt_avg_score_table[wavname.split("-")[1].split(".")[0]]
+        # sys_avg_score = self.sys_avg_score_table[wavname.split("-")[0]]
+        utt_avg_score = self.utt_avg_score_table[wavname.split("/")[-1].split(".")[0]]
+        sys_avg_score = self.sys_avg_score_table[wavname.split("/")[1]]
         data = {
             'wav': wav,
             'score': score,
@@ -363,7 +371,7 @@ class MyDataset(Dataset):
         return len(self.mos_df)
 
     def collate_fn(self, batch):  # zero padding
-        ### batchないの全てを開く。
+        ### batch内の全てを開く。
         wavs = [b['wav'] for b in batch]
         scores = [b['score'] for b in batch]
         wavnames = [b['wavname'] for b in batch]
