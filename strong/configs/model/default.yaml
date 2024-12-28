@@ -6,11 +6,13 @@ WavLM: False
 feature_extractors:
   -
     _target_: model.SSL_model
+    out_dim: 3072
+    path: "/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/byola"
 
   -
     _target_: model.PhonemeEncoder
+    llm_dim: 1024
     hidden_dim: 256
-    emb_dim: 256
     out_dim: 256
     n_lstm_layers: 3
 

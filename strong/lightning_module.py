@@ -42,16 +42,6 @@ class UTMOSLightningModule(pl.LightningModule):
     def prepare_domain_table(self):
         self.domain_table = {}
         data_sources = self.cfg.dataset.data_sources
-        for idx, datasource in enumerate(data_sources):
-            ### external が Falseなら使わない
-            if not self.cfg.dataset.use_data.external and datasource['name'] == 'external':
-                data_sources.pop(idx)
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.main and datasource['name'] == 'main':
-                data_sources.pop(idx)
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.ood and datasource['name'] == 'ood':
-                data_sources.pop(idx)
         for i, datasource in enumerate(data_sources):
             if not hasattr(datasource,'val_mos_list_path'):
                 continue
@@ -111,7 +101,7 @@ class UTMOSLightningModule(pl.LightningModule):
         # このreturnがlogに残るのか
         return {
             "loss": loss,
-            "outputs": outputs.cpu().numpy()[0]*2 +3.0,
+            "outputs": outputs.cpu().numpy()[0],
             "filename": batch["wavname"][0],
             "domain": batch["domain"][0],
             "utt_avg_score": batch["utt_avg_score"][0].item(),

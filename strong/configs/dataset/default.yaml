@@ -4,28 +4,13 @@ data_sources:
   -
     name: "main"
     train_mos_list_path: data/sets/train.txt
-    val_mos_list_path: data/sets/train.txt
-    test_mos_list_path: data/phase1-main/DATA/sets/test_mos_list.txt
+    val_mos_list_path: data/sets/val.txt
+    test_mos_list_path: data/sets/ev_wavs.txt
     wav_dir: data/wav
     data_dir: data/
     outfile: answer-main.csv
-  -
-    name: "ood"
-    train_mos_list_path: data/phase1-ood/DATA/sets/TRAINSET
-    val_mos_list_path: data/phase1-ood/DATA/sets/DEVSET
-    test_mos_list_path: data/phase1-ood/DATA/sets/test.scp
-    wav_dir: data/phase1-ood/DATA/wav/
-    data_dir: data/phase1-ood/DATA
-    outfile: answer-ood.csv
-  -
-    name: "external"
-    train_mos_list_path: TRAINSET_external.txt
-    wav_dir: data/phase1-ood/DATA/wav/
-    data_dir: data/phase1-ood/DATA
 use_data:
   main: True
-  ood: False
-  external: False
 datamodule: 
   _target_: dataset.DataModule
 #### only_meanは、平均値しか入手できないシナリオのこと。
@@ -33,8 +18,8 @@ only_mean: False
 additional_datas:
   -
     _target_: dataset.NormalizeScore
-    org_max: 5.0
-    org_min: 1.0
+    org_max: 10.0
+    org_min: 0.0
     normalize_to_max: 1.0
     normalize_to_min: -1.0
   -

@@ -37,8 +37,8 @@ additional_datas:
     with_reference: True
   -
     _target_: dataset.NormalizeScore
-    org_max: 5.0
-    org_min: 1.0
+    org_max: 10.0
+    org_min: 0.0
     normalize_to_max: 1.0
     normalize_to_min: -1.0
   -

@@ -32,24 +32,7 @@ class DataModule(pl.LightningDataModule):
         for datasource in data_sources:
             ##  wavdir["main"] = cwd/data/phase1-main/DATA/wav/
             self.wavdir[datasource.name] = join(ocwd, datasource['wav_dir'])  
-        ### use_data.*** に反してたら、リストから除外
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.external and datasource['name'] == 'external':
-                data_sources.pop(idx)
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.main and datasource['name'] == 'main':
-                data_sources.pop(idx)
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.ood and datasource['name'] == 'ood':
-                data_sources.pop(idx)
         # 一つのdatasource は、 "name": main から "outfile": answer-main.csv まで。
-        # name: "main"
-        # train_mos_list_path: data/phase1-main/DATA/sets/TRAINSET
-        # val_mos_list_path: data/phase1-main/DATA/sets/DEVSET
-        # test_mos_list_path: data/phase1-main/DATA/sets/test.scp
-        # wav_dir: data/phase1-main/DATA/wav/
-        # data_dir: data/phase1-main/DATA
-        # outfile: answer-main.csv
         # の辞書
         self.datasources = data_sources
         ### train_mos_list_path から、*.wavとMOS値入手
@@ -81,7 +64,7 @@ class DataModule(pl.LightningDataModule):
             # 
             # df = pd.read_csv(path,names=['sysID', 'filename','rating', 'ignore', 'listener_info'])
             ### ["idx", "csv_name", "filename", "caption", "temp_flag"]
-            df = pd.read_csv(path,names=["idx", "csv_name", "filename", "rating", "model", "caption", "temp_flag"])
+            df = pd.read_csv(path,names=["csv_name", "filename", "rating", "model", "caption", "temp_flag"])
             listener_df = pd.DataFrame()
             listener_df['filename'] = df['filename']
             listener_df['rating'] = df['rating']
@@ -168,16 +151,6 @@ class TestDataModule(DataModule):
         self.wavdir = {} 
         for datasource in data_sources:
             self.wavdir[datasource.name] = join(ocwd, datasource['wav_dir'])  
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.external and datasource['name'] == 'external':
-                data_sources.pop(idx)
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.main and datasource['name'] == 'main':
-                data_sources.pop(idx)
-        for idx, datasource in enumerate(data_sources):
-            if not self.cfg.dataset.use_data.ood and datasource['name'] == 'ood':
-                data_sources.pop(idx)
-
         train_paths = [join(ocwd,data_source.train_mos_list_path) for data_source in data_sources if hasattr(data_source,'train_mos_list_path')]
         domains_train = [data_source.name for data_source in data_sources if hasattr(data_source,'train_mos_list_path')]
         ### 今が valモードか、testモードかでpathの場合分け。
@@ -441,77 +414,6 @@ class AdditionalDataBase():
     def collate_fn(self, batch):
         return dict()
 
-### なんで、process_data, collate_fnが違うのだろう。
-class PhonemeData(AdditionalDataBase):
-    def __init__(self, transcription_file_path: str, with_reference=True, cfg=None,phase='train') -> None:
-        super().__init__(cfg)
-        self.text_df = pd.read_csv(
-            os.path.join(
-                hydra.utils.get_original_cwd(),
-                transcription_file_path,
-            )
-        )
-        self.with_reference = with_reference
-
-    def process_data(self, data: Dict[str, Any]):
-        wavname = data['wavname']
-        ### そのwavの書き起こし取得
-        ### h aʊ ɛ v ɚ ð ə b æ k l æ ʃ h æ z əl l ɹ ɛ d i b ɪ ɡ ʌ n　みたいな。
-        phonemes = self.text_df[self.text_df['wav_name']
-                                == wavname]['transcription']
-        assert len(phonemes) == 1, 'wavname {} has more than one text'.format(
-            wavname)
-        try:
-            ### どのsymbolに対応しているかわかれば良いので、index (位置)を取得している。
-            ### phonemes (h aʊ ɛ v) → 数値のリストにしている。
-            phonemes = [symbols.symbols.index(p) for p in phonemes.iloc[0]]
-        except:
-            print(wavname, phonemes)
-            raise ValueError
-        if self.with_reference:
-            ### 正しい音素列 reference
-            reference = self.text_df[self.text_df['wav_name']
-                                     == wavname]['reference']
-            assert len(reference) == 1, 'wavname {} has more than one text'.format(
-                wavname)
-            try:
-                reference = [symbols.symbols.index(
-                    p) for p in reference.iloc[0]]
-            except:
-                print(wavname, reference)
-                raise ValueError
-        return {
-            'phonemes': phonemes,
-            'reference': reference
-        }
-
-    def collate_fn(self, batch):
-        phonemes = [b['phonemes'] for b in batch]
-        references = [b['reference'] for b in batch]
-        ### p は、[1, 2, 3, 1, 2]などのindexのリスト。phonemeの長さ。
-        lens = [len(p) for p in phonemes]
-        phonemes = [torch.tensor(p) for p in phonemes]
-        phoneme_batch = torch.nn.utils.rnn.pad_sequence(
-            phonemes, batch_first=True)
-
-        if self.with_reference:
-            len_references = [len(p) for p in references]
-            references = [torch.tensor(p) for p in references]
-            reference_batch = torch.nn.utils.rnn.pad_sequence(
-                references, batch_first=True)
-            return {
-                'phonemes': phoneme_batch,
-                'phoneme_lens': lens,
-                'reference': reference_batch,
-                'reference_lens': len_references
-            }
-        else:
-            return {
-                'phonemes': phoneme_batch,
-                'phoneme_lens': lens,
-            }
-
-
 ### 標準化
 class NormalizeScore(AdditionalDataBase):
     def __init__(self, org_max, org_min,normalize_to_max,normalize_to_min,phase,cfg=None) -> None:
@@ -522,7 +424,7 @@ class NormalizeScore(AdditionalDataBase):
         self.normalize_to_min = normalize_to_min
     def process_data(self, data: Dict[str, Any]):
         score = data['score']
-        score = (score - (self.org_max + self.org_min)/2.0) / (self.normalize_to_max - self.normalize_to_min)
+        score = (score - (self.org_max + self.org_min)/2.0) / 5
         return {'score': score}
 
 ### データ拡張か。でも、音ファイルだけなのか。一回に入力する音ファイルを２つにするだけで、音、MOS値とかの組みが入るわけではないのか？
