@@ -3,9 +3,9 @@ data_dir: data/phase1-main/DATA
 data_sources: 
   -
     name: "main"
-    train_mos_list_path: data/sets/train.txt
-    val_mos_list_path: data/sets/val.txt
-    test_mos_list_path: data/sets/ev.txt
+    train_mos_list_path: data/sets/train_unique.txt
+    val_mos_list_path: data/sets/val_unique.txt
+    test_mos_list_path: data/sets/ev_unique.txt
     wav_dir: data/wav
     data_dir: data/
     outfile: answer-main.csv
@@ -22,12 +22,3 @@ additional_datas:
     org_min: 0.0
     normalize_to_max: 1.0
     normalize_to_min: -1.0
-  -
-    _target_:  dataset.AugmentWav
-    pitch_shift_minmax:
-      min: -300
-      max: 300
-    random_time_warp_f: 1.0
-  -
-    _target_:  dataset.SliceWav
-    max_wav_seconds: 10

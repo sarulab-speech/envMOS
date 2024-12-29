@@ -32,14 +32,14 @@ criterion:
   _target_: loss_function.CombineLosses
   loss_weights:
     - 1.0
-    - 0.5
+    - 0.0
   loss_instances:
     -
       _target_: loss_function.ClippedMSELoss
       criterion:
         _target_: torch.nn.MSELoss
         reduction: 'none'
-      tau: 0.25
+      tau: 0.10
       mode: 'frame'
     -
       _target_: loss_function.ContrastiveLoss

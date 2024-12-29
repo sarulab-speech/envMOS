@@ -65,14 +65,18 @@ class UTMOSLightningModule(pl.LightningModule):
         ### self()はforwardと同じ。
         outputs = self(batch)
         loss = self.criterion(outputs, batch['score'])
+        print(outputs, "output")
+        print(batch['score'])
         self.log(
-            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True, batch_size=self.cfg.train.train_batch_size
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=False, logger=True, batch_size=self.cfg.train.train_batch_size
         )
         return loss
 
     def validation_step(self, batch, batch_idx):
         outputs = self(batch)
         loss = self.criterion(outputs, batch['score'])
+        print(outputs, "output")
+        print(batch['score'])
         if outputs.dim() > 1:
             outputs = outputs.mean(dim=1).squeeze(-1)
         # このreturnがlogに残るのか
@@ -81,8 +85,6 @@ class UTMOSLightningModule(pl.LightningModule):
             "outputs": outputs.cpu().numpy()[0]*5+5,
             "filename": batch["wavname"][0],
             "domain": batch["domain"][0],
-            "utt_avg_score": batch["utt_avg_score"][0].item(),
-            "sys_avg_score": batch["sys_avg_score"][0].item(),
             "raw_avg_score": batch["raw_avg_score"][0].item()
         }
 
@@ -98,14 +100,14 @@ class UTMOSLightningModule(pl.LightningModule):
                 "val_SRCC_system_{}".format(self.domain_table[domain_id]),
                 SRCC,
                 on_epoch=True,
-                prog_bar=True,
+                prog_bar=False,
                 logger=True
             )
             self.log(
                 "val_MSE_system_{}".format(self.domain_table[domain_id]),
                 MSE,
                 on_epoch=True,
-                prog_bar=True,
+                prog_bar=False,
                 logger=True
             )
             if domain_id == 0:
@@ -113,13 +115,15 @@ class UTMOSLightningModule(pl.LightningModule):
                     "val_SRCC_system".format(self.domain_table[domain_id]),
                     SRCC,
                     on_epoch=True,
-                    prog_bar=True,
+                    prog_bar=False,
                     logger=True
                 )
 
     def test_step(self, batch, batch_idx):
         outputs = self(batch)
         loss = self.criterion(outputs, batch['score'])
+        print(outputs, "output")
+        print(batch['score'])
         labels = batch['score']
         filenames = batch['wavname']
         loss = self.criterion(outputs, labels)
@@ -133,8 +137,6 @@ class UTMOSLightningModule(pl.LightningModule):
             "domain": batch["domain"][0],
             "i_cv": batch["i_cv"][0],
             "set_name": batch["set_name"][0],
-            "utt_avg_score": batch["utt_avg_score"][0].item(),
-            "sys_avg_score": batch["sys_avg_score"][0].item(),
             "raw_avg_score": batch["raw_avg_score"][0].item()
         }
 
@@ -152,9 +154,10 @@ class UTMOSLightningModule(pl.LightningModule):
                     "test_SRCC_SYS".format(self.domain_table[domain_id]),
                     SRCC
                 )
+            # answer-main.csv_-1
             with open(outfiles[domain_id], "w") as fw:
                 for k, v in predictions.items():
-                    outl = k.split(".")[0] + "," + str(v) + "\n" + "TEST_EPOCH"
+                    outl = k.split(".")[0] + "," + str(v) + "\n"
                     fw.write(outl)
             try:
                 wandb.save(outfiles[domain_id])
@@ -179,18 +182,12 @@ class UTMOSLightningModule(pl.LightningModule):
 
     def calc_score(self, outputs, verbose=False):
 
-        # def systemID(uttID):
-        #     return uttID.split("-")[0]
 
         predictions = {}
         true_MOS = {}
-        true_utt_MOS_avg = {}
-        true_sys_MOS_avg = {}
         for out in outputs:
             predictions[out["filename"]] = out["outputs"]
             true_MOS[out["filename"]] = out["raw_avg_score"]
-            true_utt_MOS_avg[out["filename"].split("/")[-1].split(".")[0]] = out["utt_avg_score"]
-            true_sys_MOS_avg[out["filename"].split("/")[1]] = out["sys_avg_score"]
 
         sorted_filenames = sorted(predictions.keys())
         ts = []
@@ -214,82 +211,6 @@ class UTMOSLightningModule(pl.LightningModule):
             print("[RAW] Linear correlation coefficient= %f" % LCC[0][1])
             print("[RAW] Spearman rank correlation coefficient= %f" % SRCC[0])
             print("[RAW] Kendall Tau rank correlation coefficient= %f" % KTAU[0])
-
-    #     ### UTT
-
-    #    ### SYSTEM
-    #     pred_utt_MOSes = {}
-    #     for uttID in sorted_uttIDs:
-    #         sysID = out["filename"]
-    #         noop = pred_sys_MOSes.setdefault(sysID, [])
-    #         pred_sys_MOSes[sysID].append(predictions[uttID])
-
-    #     pred_sys_MOS_avg = {}
-    #     for k, v in pred_sys_MOSes.items():
-    #         avg_MOS = sum(v) / (len(v) * 1.0)
-    #         pred_sys_MOS_avg[k] = avg_MOS
-
-
-    #     ## compute correls.
-    #     sorted_uttIDs = sorted(predictions.keys())
-    #     ts = []
-    #     ps = []
-    #     for uttID in sorted_uttIDs:
-    #         t = true_MOS[uttID]
-    #         p = predictions[uttID]
-    #         ts.append(t)
-    #         ps.append(p)
-
-    #     truths = np.array(ts)
-    #     print(ps, "pspspsps")
-    #     preds = np.array(ps)
-
-    #     ### UTTERANCE
-    #     MSE = np.mean((truths - preds) ** 2)
-    #     LCC = np.corrcoef(truths, preds)
-    #     SRCC = scipy.stats.spearmanr(truths.T, preds.T)
-    #     KTAU = scipy.stats.kendalltau(truths, preds)
-    #     if verbose:
-    #         print("[UTTERANCE] Test error= %f" % MSE)
-    #         print("[UTTERANCE] Linear correlation coefficient= %f" % LCC[0][1])
-    #         print("[UTTERANCE] Spearman rank correlation coefficient= %f" % SRCC[0])
-    #         print("[UTTERANCE] Kendall Tau rank correlation coefficient= %f" % KTAU[0])
-
-    #     ### SYSTEM
-    #     pred_sys_MOSes = {}
-    #     for uttID in sorted_uttIDs:
-    #         sysID = out["filename"]
-    #         noop = pred_sys_MOSes.setdefault(sysID, [])
-    #         pred_sys_MOSes[sysID].append(predictions[uttID])
-
-    #     pred_sys_MOS_avg = {}
-    #     for k, v in pred_sys_MOSes.items():
-    #         avg_MOS = sum(v) / (len(v) * 1.0)
-    #         pred_sys_MOS_avg[k] = avg_MOS
-
-    #     ## make lists sorted by system
-    #     pred_sysIDs = sorted(pred_sys_MOS_avg.keys())
-    #     sys_p = []
-    #     sys_t = []
-    #     for sysID in pred_sysIDs:
-    #         sys_p.append(pred_sys_MOS_avg[sysID])
-    #         sys_t.append(true_sys_MOS_avg[sysID])
-
-    #     sys_true = np.array(sys_t)
-    #     sys_predicted = np.array(sys_p)
-
-    #     MSE = np.mean((sys_true - sys_predicted) ** 2)
-    #     LCC = np.corrcoef(sys_true, sys_predicted)
-    #     SRCC = scipy.stats.spearmanr(sys_true.T, sys_predicted.T)
-    #     KTAU = scipy.stats.kendalltau(sys_true, sys_predicted)
-    #     if verbose:
-    #         print("[SYSTEM] Test error= %f" % MSE)
-    #         print("[SYSTEM] Linear correlation coefficient= %f" % LCC[0][1])
-    #         print("[SYSTEM] Spearman rank correlation coefficient= %f" % SRCC[0])
-    #         print("[SYSTEM] Kendall Tau rank correlation coefficient= %f" % KTAU[0])
-        ### これは何？
-        ### 全体もやらないと tango/train/***.wav
-
         return predictions, SRCC[0], MSE
 
 

@@ -28,9 +28,7 @@ def predict(cfg):
         with open_dict(cfg):
             ckpt = torch.load(ckpt_path)
             use_data = ckpt['hyper_parameters']['cfg']['dataset']['use_data']
-            cfg.dataset.use_data['external'] = use_data['lancers']
             cfg.dataset.use_data['main'] = use_data['main']
-            cfg.dataset.use_data['ood'] = use_data['ood']
             cfg.dataset.only_mean = ckpt['hyper_parameters']['cfg']['dataset']['only_mean']
         lightning_module = UTMOSLightningModule.load_from_checkpoint(ckpt_path,cfg=cfg,paper_weight=cfg.paper_weights)
         lightning_module.cfg

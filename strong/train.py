@@ -36,6 +36,7 @@ def train(cfg):
     )
     lr_monitor = LearningRateMonitor(logging_interval='step')
     callbacks = [checkpoint_callback,lr_monitor]
+    ### val_lossが patience epoch改善しなければ、止める。
     earlystop_callback = EarlyStopping(
         monitor="val_loss", min_delta=0.0, patience=cfg.train.early_stopping.patience, mode="min"
     )
@@ -55,7 +56,7 @@ def train(cfg):
     lightning_module = UTMOSLightningModule(cfg)    
     
     trainer.fit(lightning_module, datamodule=datamodule)
-
+    print(checkpoint_callback.best_model_path)
     if debug:
         trainer.test(lightning_module, datamodule=datamodule)
         trainer.test(lightning_module, datamodule=test_datamodule)

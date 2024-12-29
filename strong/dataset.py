@@ -312,12 +312,6 @@ class MyDataset(Dataset):
         ### 行
         selected_row = self.mos_df.iloc[idx]
         wavname = selected_row['filename']
-        # domain = selected_row['domain']
-        domain = "main"
-        # wavpath = os.path.join(self.wavdir[domain], wavname)
-        wavpath = self.wavdir[domain]+wavname
-        ### 波形
-        wav = torchaudio.load(wavpath)[0]
         score = selected_row['rating']
         domain_id = selected_row['domain_id']
         listener_id = selected_row['listener_id']
@@ -332,7 +326,6 @@ class MyDataset(Dataset):
         utt_avg_score = self.utt_avg_score_table[wavname.split("/")[-1].split(".")[0]]
         sys_avg_score = self.sys_avg_score_table[wavname.split("/")[1]]
         data = {
-            'wav': wav,
             'score': score,
             'wavname': wavname,
             'domain': domain_id,
@@ -354,7 +347,6 @@ class MyDataset(Dataset):
 
     def collate_fn(self, batch):  # zero padding
         ### batch内の全てを開く。
-        wavs = [b['wav'] for b in batch]
         scores = [b['score'] for b in batch]
         wavnames = [b['wavname'] for b in batch]
         domains = [b['domain'] for b in batch]
@@ -364,25 +356,6 @@ class MyDataset(Dataset):
         raw_avg_scores = [b['raw_avg_score'] for b in batch]
         utt_avg_scores = [b['utt_avg_score'] for b in batch]
         sys_avg_scores = [b['sys_avg_score'] for b in batch]
-        wavs = list(wavs)
-        max_len = max(wavs, key=lambda x: x.shape[1]).shape[1]
-        ### wavの長さを取得
-        wavs_lengths = torch.from_numpy(np.array([wav.size(0) for wav in wavs]))
-        output_wavs = []
-        if self.padding_mode == 'zero-padding':
-            for wav in wavs:
-                amount_to_pad = max_len - wav.shape[1]
-                padded_wav = torch.nn.functional.pad(
-                    ### 末尾にpadding
-                    wav, (0, amount_to_pad), "constant", 0)
-                output_wavs.append(padded_wav)
-        else:
-            for wav in wavs:
-                amount_to_pad = max_len - wav.shape[1]
-                ### 縦方向に1, 横方向に 1+amount_to_pad//wav.size(1) repeatしている。繰り返してる。
-                padding_tensor = wav.repeat(1,1+amount_to_pad//wav.size(1))
-                output_wavs.append(torch.cat((wav,padding_tensor[:,:amount_to_pad]),dim=1))
-        output_wavs = torch.stack(output_wavs, dim=0)
         scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(scores)], dim=0)
         ### 中身をtorch.float の tensorに変換。その後、リストにして、stackでテンソルに。
         ### 全体を通してやりたいことは、中身をtensorに変換かな。
@@ -392,7 +365,6 @@ class MyDataset(Dataset):
         domains = torch.stack([torch.tensor(x) for x in list(domains)], dim=0)
         judge_id = torch.stack([torch.tensor(x) for x in list(judge_id)], dim=0)
         collated_batch = {
-            'wav': output_wavs,
             'score': scores,
             'raw_avg_score': raw_avg_scores,
             'utt_avg_score': utt_avg_scores,
@@ -400,7 +372,6 @@ class MyDataset(Dataset):
             'wavname': wavnames,
             'domains': domains,
             'judge_id': judge_id,
-            'wav_len': wavs_lengths,
             'domain': domains,
             'i_cv': i_cvs,
             'set_name': set_names
@@ -441,26 +412,3 @@ class NormalizeScore(AdditionalDataBase):
 
 ### データ拡張か。でも、音ファイルだけなのか。一回に入力する音ファイルを２つにするだけで、音、MOS値とかの組みが入るわけではないのか？
 ### 毎回ある変化を加えたwavを入力しているのか。じゃあ元と全く同じwavは入れてないんだ。 trainデータを何周かするから、ってことか？
-class AugmentWav(AdditionalDataBase):
-    def __init__(self,pitch_shift_minmax:Dict[str, int],random_time_warp_f,phase='train', cfg=None) -> None:
-        super().__init__(cfg)
-        self.chain = augment.EffectChain()
-        self.chain.pitch(random_pitch_shift(pitch_shift_minmax['min'], pitch_shift_minmax['max'])).rate(16000)
-        self.chain.tempo(random_time_warp(random_time_warp_f))
-        self.chain = ChainRunner(self.chain)
-        self.phase = phase
-    def process_data(self, data: Dict[str, Any]):
-        if self.phase=='train':
-            ### 変更を加えるのか。
-            augmented_wav = self.chain(data['wav'])
-        else:
-            augmented_wav = data['wav']
-        return {'wav': augmented_wav}
-    
-### 長すぎるwavを切ってしまう。
-class SliceWav(AdditionalDataBase):
-    def __init__(self, max_wav_seconds,cfg=None,phase=None) -> None:
-        super().__init__()
-        self.max_wav_len = int(max_wav_seconds*16000)
-    def process_data(self, data: Dict[str, Any]):
-        return {'wav': data['wav'][:, :self.max_wav_len]}
