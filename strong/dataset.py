@@ -189,11 +189,11 @@ class TestDataModule(DataModule):
         dfs = [] 
         for path, domain in zip(paths,domains):
             ### open test.scp
-            with open(path) as f:
-                wavlist = [wavline.strip() for wavline in f]
+            df_raw = pd.read_csv(path,names=["csv_name", "filename", "rating", "model", "caption", "temp_flag"])
             df = pd.DataFrame()
-            df['filename'] = wavlist
-            df['rating'] = -1
+            df['filename'] = df_raw["filename"]
+            df['rating'] = df_raw["rating"]
+
             ### mean_listerに評価させている？
             df['listener_name'] = f'MEAN_LISTENER_{domain}'
             df['domain'] = domain
@@ -271,6 +271,7 @@ class MyDataset(Dataset):
         self.mos_df = mos_df
 
         # calc mean score by utterance
+        raw_ratings = defaultdict(list)
         sys_ratings = defaultdict(list)
         utt_ratings = defaultdict(list)
         ### 行ごとに
@@ -280,11 +281,17 @@ class MyDataset(Dataset):
             ### utt → utt45dc367
             ### sys → sys0eb39
             # utt_ratings[wavname.split("-")[1].split(".")[0]].append(row["rating"])
+            # 辞書に "111000": [4, 7] とか。
+            raw_ratings[wavname].append(row["rating"])
             utt_ratings[wavname.split("/")[-1].split(".")[0]].append(row["rating"])
+            # tangoとか
             sys_ratings[wavname.split("/")[1]].append(row["rating"])
+        self.raw_avg_score_table = {}
         self.utt_avg_score_table = {}
         self.sys_avg_score_table = {}
         ### 発話単位、システム単位で平均
+        for key in raw_ratings:
+            self.raw_avg_score_table[key] = sum(raw_ratings[key])/len(raw_ratings[key])
         for key in utt_ratings:
             self.utt_avg_score_table[key] = sum(utt_ratings[key])/len(utt_ratings[key])
         for key in sys_ratings:
@@ -321,6 +328,7 @@ class MyDataset(Dataset):
         ### 今読み込んでいるwavについて、その発話、システムでの平均取得
         # utt_avg_score = self.utt_avg_score_table[wavname.split("-")[1].split(".")[0]]
         # sys_avg_score = self.sys_avg_score_table[wavname.split("-")[0]]
+        raw_avg_score = self.raw_avg_score_table[wavname]
         utt_avg_score = self.utt_avg_score_table[wavname.split("/")[-1].split(".")[0]]
         sys_avg_score = self.sys_avg_score_table[wavname.split("/")[1]]
         data = {
@@ -331,6 +339,7 @@ class MyDataset(Dataset):
             'judge_id': listener_id,
             'i_cv': i_cv,
             'set_name': set_name,
+            'raw_avg_score': raw_avg_score,
             'utt_avg_score': utt_avg_score,
             'sys_avg_score': sys_avg_score
         }
@@ -352,6 +361,7 @@ class MyDataset(Dataset):
         judge_id = [b['judge_id'] for b in batch]
         i_cvs = [b['i_cv'] for b in batch]
         set_names = [b['set_name'] for b in batch]
+        raw_avg_scores = [b['raw_avg_score'] for b in batch]
         utt_avg_scores = [b['utt_avg_score'] for b in batch]
         sys_avg_scores = [b['sys_avg_score'] for b in batch]
         wavs = list(wavs)
@@ -376,6 +386,7 @@ class MyDataset(Dataset):
         scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(scores)], dim=0)
         ### 中身をtorch.float の tensorに変換。その後、リストにして、stackでテンソルに。
         ### 全体を通してやりたいことは、中身をtensorに変換かな。
+        raw_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(raw_avg_scores)], dim=0)
         utt_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(utt_avg_scores)], dim=0)
         sys_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(sys_avg_scores)], dim=0)
         domains = torch.stack([torch.tensor(x) for x in list(domains)], dim=0)
@@ -383,6 +394,7 @@ class MyDataset(Dataset):
         collated_batch = {
             'wav': output_wavs,
             'score': scores,
+            'raw_avg_score': raw_avg_scores,
             'utt_avg_score': utt_avg_scores,
             'sys_avg_score': sys_avg_scores,
             'wavname': wavnames,

@@ -51,14 +51,11 @@ class PhonemeEncoder(nn.Module):
 
         caption_batch = torch.nn.utils.rnn.pad_sequence(lis, batch_first=True)
         seq = caption_batch
-        print(caption_batch.shape, "captionbatch")
         ### 256次元に。　batch x len(phonemes) x 256
         _, (ht, _) = self.encoder(seq)
         ### batch x sequence length (paddingされてるので、max(len(phonemes))) x 
         ### output, (h_n, c_n) が出力なので、 h_n だけを拾っている。
         feature = ht[-1] + ht[0]
-        print(ht[-1].shape, "-1")
-        print(ht[0].shape)
         
         ### 3層 がbidirectionalなので6 x 出力次元
         ### なぜ第一層と最終層なんだ？ なぜoutputではないんだ？
@@ -108,6 +105,6 @@ class Projection(nn.Module):
         ### hiddenが2048. 最後に2048から1.
         ### では、batch x flame x 1 が出てくるのか。
         # range clipping
-        return output * 5 + 5
+        return output
     def get_output_dim(self):
         return self.output_dim

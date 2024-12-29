@@ -3,6 +3,6 @@ defaults:
   - model: default
   - train: default
 
-debug: True
+debug: False
 deepspeed: False
 outfile: answer.csv
