@@ -1,0 +1,30 @@
+# @package _group_
+lightning_module: 
+  _target_: lightning_module.BaselineLightningModule
+WavLM: False
+
+feature_extractors:
+  -
+    _target_: model.SSL_model
+    out_dim: 3072
+    path: "/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/byola"
+
+  -
+    _target_: model.PhonemeEncoder
+    llm_dim: 1024
+    hidden_dim: 256
+    out_dim: 256
+    n_lstm_layers: 3
+
+output_layers:
+  -
+    _target_: model.LDConditioner
+    judge_dim: 128
+    num_judges: 3000
+  -
+   _target_: model.Projection
+   hidden_dim: 2048
+   activation:
+    _target_: torch.nn.ReLU
+   range_clipping: False
+
