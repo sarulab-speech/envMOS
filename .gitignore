@@ -162,3 +162,5 @@ cython_debug/
 outputs/
 stacking/out/
 stacking/data
+*.out
+*.ckpt
