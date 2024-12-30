@@ -104,6 +104,7 @@ class AudioNTT2022(AudioNTT2022Encoder):
         super().__init__(n_mels=n_mels, d=d, mlp_hidden_d=mlp_hidden_d)
 
     def forward(self, x):
+        # (batch, time, mel*ch)
         x = super().forward(x)
-        x = mean_max_pooling(x)
+        # x = mean_max_pooling(x)
         return x

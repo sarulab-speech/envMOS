@@ -48,9 +48,10 @@ class SSL_model(nn.Module):
         lis = []
         for wav in wavs:
             lms = normalizer((self.to_melspec(wav) + torch.finfo(torch.float).eps).log())
-            features = self.model(lms.unsqueeze(0))
+            features = self.model(lms.unsqueeze(0))[0]
             lis.append(features)
         x = torch.stack(lis, dim=0)
+        ### batch x time x 3072
         return {"ssl-feature":x}
 
     def get_output_dim(self):
