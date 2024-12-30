@@ -32,7 +32,7 @@ def train(cfg):
         save_last=True,
         every_n_epochs=1,
         monitor=cfg.train.model_selection_metric,
-        mode='max'
+        mode='max',
     )
     lr_monitor = LearningRateMonitor(logging_interval='step')
     callbacks = [checkpoint_callback,lr_monitor]
@@ -49,22 +49,23 @@ def train(cfg):
         limit_val_batches=0.5 if debug else 1.0,
         callbacks=callbacks,
         logger=loggers,
+        accelerator=None,
     )
 
     datamodule = hydra.utils.instantiate(cfg.dataset.datamodule,cfg=cfg,_recursive_=False)
-    test_datamodule = TestDataModule(cfg=cfg, i_cv=0, set_name='test')
+    # test_datamodule = TestDataModule(cfg=cfg, i_cv=0, set_name='test')
     lightning_module = UTMOSLightningModule(cfg)    
     
     trainer.fit(lightning_module, datamodule=datamodule)
     print(checkpoint_callback.best_model_path)
-    if debug:
-        trainer.test(lightning_module, datamodule=datamodule)
-        trainer.test(lightning_module, datamodule=test_datamodule)
-    else:
-        trainer.test(lightning_module, datamodule=datamodule,ckpt_path=checkpoint_callback.best_model_path)
-        trainer.test(lightning_module, datamodule=test_datamodule,ckpt_path=checkpoint_callback.best_model_path)
-        if cfg.train.use_wandb:
-            wandb.save(checkpoint_callback.best_model_path)
+    # if debug:
+    #     trainer.test(lightning_module, datamodule=datamodule)
+    #     trainer.test(lightning_module, datamodule=test_datamodule)
+    # else:
+        # trainer.test(lightning_module, datamodule=datamodule,ckpt_path=checkpoint_callback.best_model_path)
+        # trainer.test(lightning_module, datamodule=test_datamodule,ckpt_path=checkpoint_callback.best_model_path)
+        # if cfg.train.use_wandb:
+        #     wandb.save(checkpoint_callback.best_model_path)
 
 if __name__ == "__main__":
     train()

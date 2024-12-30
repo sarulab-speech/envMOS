@@ -1,7 +1,7 @@
 # @package _group_ 
 seed: 1234
 use_wandb: False
-model_selection_metric: val_SRCC_system_main
+model_selection_metric: val_SRCC_system
 train_batch_size: 12
 val_batch_size: 1
 test_batch_size: 1
@@ -15,7 +15,7 @@ trainer_args:
   precision: 32
   gradient_clip_val: 1.0
   flush_logs_every_n_steps: 10
-  val_check_interval: 0.5
+  val_check_interval: 0.1
   accumulate_grad_batches: 2
   # strategy: ddp
 optimizer:
@@ -32,7 +32,7 @@ criterion:
   _target_: loss_function.CombineLosses
   loss_weights:
     - 1.0
-    - 0.0
+    - 0.5
   loss_instances:
     -
       _target_: loss_function.ClippedMSELoss

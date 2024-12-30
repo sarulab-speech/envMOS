@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from WavLM import WavLM, WavLMConfig
 from text.symbols import symbols
 import fairseq
 import os
@@ -67,18 +66,24 @@ class PhonemeEncoder(nn.Module):
 
 ### listener id を加えて、LSTMから特徴量抽出
 class LDConditioner(nn.Module):
-    def __init__(self,input_dim):
+    def __init__(self,input_dim, judge_dim, num_judges):
         super().__init__()
+        self.judge_dim = judge_dim
+        self.num_judges = num_judges
+        self.judge_embedding = nn.Embedding(num_judges, self.judge_dim)
+
         self.input_dim = input_dim
-        self.out_dim = 3072+256
+        self.out_dim = 3072+256+128
 
     def get_output_dim(self):
         return self.out_dim
 
     def forward(self, x, batch):
+        judge_ids = batch['judge_id']
         ### ssl特徴量の 768に、+600とか横に足される。
         ### batch? x フレーム x ssl or phoneme or ...
         concatenated_feature = torch.cat((x['ssl-feature'], x['phoneme-feature'].unsqueeze(1).expand(-1,x['ssl-feature'].size(1) ,-1)),dim=2)
+        concatenated_feature = torch.cat((concatenated_feature, self.judge_embedding(judge_ids).unsqueeze(1).expand(-1, concatenated_feature.size(1), -1)),dim=2)
         return concatenated_feature
 
 ### RELUで予測値算出

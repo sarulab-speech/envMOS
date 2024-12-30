@@ -59,11 +59,6 @@ class DataModule(pl.LightningDataModule):
         dfs = [] 
         ## main, odd, external 全て含まれてたら全部合わせた dfsができる。
         for path, domain in zip(paths,domains):
-            # train_path, val は 'sysID', 'filename','rating', 'ignore', 'listener_info'
-            #                    sys0eb39,sys0eb39-utt4870f4a.wav,3,VDP1ovyrBzg8_1,{}_18-29_ZPGlxO3OmLRp_Female_Valid_1_No
-            # 
-            # df = pd.read_csv(path,names=['sysID', 'filename','rating', 'ignore', 'listener_info'])
-            ### ["idx", "csv_name", "filename", "caption", "temp_flag"]
             df = pd.read_csv(path,names=["csv_name", "filename", "rating", "model", "caption", "temp_flag"])
             listener_df = pd.DataFrame()
             listener_df['filename'] = df['filename']

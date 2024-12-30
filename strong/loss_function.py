@@ -43,7 +43,9 @@ class ClippedMSELoss(nn.Module):
     def forward_criterion(self, y_hat, label):
         ### batch x flame x 1 (score)
         ### squeeze で最後の次元を削除
+        
         y_hat = y_hat.squeeze(-1)
+        ### MSEloss
         loss = self.criterion(y_hat, label)
         threshold = torch.abs(y_hat - label) > self.tau
         loss = torch.mean(threshold * loss)

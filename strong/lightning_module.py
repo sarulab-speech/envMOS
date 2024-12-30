@@ -65,18 +65,14 @@ class UTMOSLightningModule(pl.LightningModule):
         ### self()はforwardと同じ。
         outputs = self(batch)
         loss = self.criterion(outputs, batch['score'])
-        print(outputs, "output")
-        print(batch['score'])
         self.log(
-            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=False, logger=True, batch_size=self.cfg.train.train_batch_size
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True, batch_size=self.cfg.train.train_batch_size
         )
         return loss
 
     def validation_step(self, batch, batch_idx):
         outputs = self(batch)
         loss = self.criterion(outputs, batch['score'])
-        print(outputs, "output")
-        print(batch['score'])
         if outputs.dim() > 1:
             outputs = outputs.mean(dim=1).squeeze(-1)
         # このreturnがlogに残るのか
@@ -96,28 +92,21 @@ class UTMOSLightningModule(pl.LightningModule):
             if len(outputs_domain) == 0:
                 continue
             _, SRCC, MSE = self.calc_score(outputs_domain)
+            print("val_SRCC_system_print",SRCC)
             self.log(
-                "val_SRCC_system_{}".format(self.domain_table[domain_id]),
+                "val_SRCC_system",
                 SRCC,
                 on_epoch=True,
-                prog_bar=False,
+                prog_bar=True,
                 logger=True
             )
             self.log(
-                "val_MSE_system_{}".format(self.domain_table[domain_id]),
+                "val_MSE_system",
                 MSE,
                 on_epoch=True,
-                prog_bar=False,
+                prog_bar=True,
                 logger=True
             )
-            if domain_id == 0:
-                self.log(
-                    "val_SRCC_system".format(self.domain_table[domain_id]),
-                    SRCC,
-                    on_epoch=True,
-                    prog_bar=False,
-                    logger=True
-                )
 
     def test_step(self, batch, batch_idx):
         outputs = self(batch)
