@@ -22,3 +22,6 @@ additional_datas:
     org_min: 0.0
     normalize_to_max: 1.0
     normalize_to_min: -1.0
+  -
+    _target_:  dataset.SliceWav
+    max_wav_seconds: 10

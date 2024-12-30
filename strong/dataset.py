@@ -67,10 +67,13 @@ class DataModule(pl.LightningDataModule):
             # listener_df['listener_name'] = df['listener_info'].str.split('_').str[2]
             listener_df['listener_name'] = df['csv_name']
             listener_df['domain'] = domain
+
+
             # 音ファイル単位でのmean
             mean_df = pd.DataFrame(listener_df.groupby('filename',as_index=False)['rating'].mean())
             mean_df['listener_name']= f"MEAN_LISTENER_{domain}"
             mean_df['domain'] = domain
+
             if only_mean:
                 dfs.append(mean_df)
             else:

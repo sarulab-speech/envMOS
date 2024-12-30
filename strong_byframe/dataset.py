@@ -8,13 +8,17 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 import hydra
-from phonemizer import phonemize
 import pandas as pd
 from data_augment import ChainRunner, random_pitch_shift, random_time_warp
-import text.symbols as symbols
 import numpy as np
 from collections import defaultdict
 from torch.nn.utils.rnn import pad_sequence
+from tqdm import tqdm
+import numpy as np
+import logging
+
+from byol_a.common import load_yaml_config
+from byol_a.dataset import WaveInLMSOutDataset
 
 
 class DataModule(pl.LightningDataModule):
@@ -71,6 +75,14 @@ class DataModule(pl.LightningDataModule):
             mean_df = pd.DataFrame(listener_df.groupby('filename',as_index=False)['rating'].mean())
             mean_df['listener_name']= f"MEAN_LISTENER_{domain}"
             mean_df['domain'] = domain
+
+            stat_arr = calc_norm_stats(cfg=load_yaml_config("/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/config.yaml"), wav_list=list(mean_df["filename"]))
+            mean_mel = stat_arr[0]
+            std_mel = stat_arr[1]
+            listener_df["mean_mel"] = mean_mel
+            listener_df["std_mel"] = std_mel
+            mean_df["mean_mel"] = mean_mel
+            mean_df["std_mel"] = std_mel
             if only_mean:
                 dfs.append(mean_df)
             else:
@@ -307,9 +319,15 @@ class MyDataset(Dataset):
         ### 行
         selected_row = self.mos_df.iloc[idx]
         wavname = selected_row['filename']
+        wavpath = "/work/ge43/e43020/master_project/data/wav"+wavname
+        wav = torchaudio.load(wavpath)[0]
+
         score = selected_row['rating']
         domain_id = selected_row['domain_id']
         listener_id = selected_row['listener_id']
+        mean_mel = selected_row["mean_mel"]
+        std_mel = selected_row["std_mel"]
+        
         ### i_cvはクロスバリデーションの時にどうやって使うんだ
         i_cv = selected_row['i_cv'] if 'i_cv' in selected_row else -1
         ### test, val, fold　など
@@ -321,15 +339,19 @@ class MyDataset(Dataset):
         utt_avg_score = self.utt_avg_score_table[wavname.split("/")[-1].split(".")[0]]
         sys_avg_score = self.sys_avg_score_table[wavname.split("/")[1]]
         data = {
+            'wav': wav,
             'score': score,
             'wavname': wavname,
+            'wavpath': wavpath,
             'domain': domain_id,
             'judge_id': listener_id,
             'i_cv': i_cv,
             'set_name': set_name,
             'raw_avg_score': raw_avg_score,
             'utt_avg_score': utt_avg_score,
-            'sys_avg_score': sys_avg_score
+            'sys_avg_score': sys_avg_score,
+            'mean_mel': mean_mel,
+            'std_mel': std_mel
         }
         for additional_data_instances in self.additional_datas:
             ### dataに対して、additional_data_instancesの各処理を施す。
@@ -342,8 +364,10 @@ class MyDataset(Dataset):
 
     def collate_fn(self, batch):  # zero padding
         ### batch内の全てを開く。
+        wavs = [b['wav'] for b in batch]
         scores = [b['score'] for b in batch]
         wavnames = [b['wavname'] for b in batch]
+        wavpaths = [b['wavpath'] for b in batch]
         domains = [b['domain'] for b in batch]
         judge_id = [b['judge_id'] for b in batch]
         i_cvs = [b['i_cv'] for b in batch]
@@ -351,25 +375,52 @@ class MyDataset(Dataset):
         raw_avg_scores = [b['raw_avg_score'] for b in batch]
         utt_avg_scores = [b['utt_avg_score'] for b in batch]
         sys_avg_scores = [b['sys_avg_score'] for b in batch]
+        mean_mels = [b['mean_mel'] for b in batch]
+        std_mels = [b['std_mel'] for b in batch]
         scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(scores)], dim=0)
         ### 中身をtorch.float の tensorに変換。その後、リストにして、stackでテンソルに。
         ### 全体を通してやりたいことは、中身をtensorに変換かな。
         raw_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(raw_avg_scores)], dim=0)
         utt_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(utt_avg_scores)], dim=0)
         sys_avg_scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(sys_avg_scores)], dim=0)
+        mean_mels = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(mean_mels)], dim=0)
+        std_mels = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(std_mels)], dim=0)
         domains = torch.stack([torch.tensor(x) for x in list(domains)], dim=0)
         judge_id = torch.stack([torch.tensor(x) for x in list(judge_id)], dim=0)
+
+        wavs = list(wavs)
+        max_len = max(wavs, key=lambda x: x.shape[1]).shape[1]
+        wavs_lengths = torch.from_numpy(np.array([wav.size(0) for wav in wavs]))
+        output_wavs = []
+        if self.padding_mode == 'zero-padding':
+            for wav in wavs:
+                amount_to_pad = max_len - wav.shape[1]
+                padded_wav = torch.nn.functional.pad(
+                    wav, (0, amount_to_pad), "constant", 0)
+                output_wavs.append(padded_wav)
+        else:
+            for wav in wavs:
+                amount_to_pad = max_len - wav.shape[1]
+                padding_tensor = wav.repeat(1,1+amount_to_pad//wav.size(1))
+                output_wavs.append(torch.cat((wav,padding_tensor[:,:amount_to_pad]),dim=1))
+        output_wavs = torch.stack(output_wavs, dim=0)
+        
         collated_batch = {
+            'wav': output_wavs,
+            'wav_len': wavs_lengths,
             'score': scores,
             'raw_avg_score': raw_avg_scores,
             'utt_avg_score': utt_avg_scores,
             'sys_avg_score': sys_avg_scores,
             'wavname': wavnames,
+            'wavpath': wavpaths,
             'domains': domains,
             'judge_id': judge_id,
             'domain': domains,
             'i_cv': i_cvs,
-            'set_name': set_names
+            'set_name': set_names,
+            'mean_mel': mean_mels,
+            'std_mel': std_mels
         } # judge id, domain, averaged score
         for additional_data_instance in self.additional_datas:
             ### このcollate_n は、AdditionalDataBase()内の関数。
@@ -407,3 +458,34 @@ class NormalizeScore(AdditionalDataBase):
 
 ### データ拡張か。でも、音ファイルだけなのか。一回に入力する音ファイルを２つにするだけで、音、MOS値とかの組みが入るわけではないのか？
 ### 毎回ある変化を加えたwavを入力しているのか。じゃあ元と全く同じwavは入れてないんだ。 trainデータを何周かするから、ってことか？
+
+def calc_norm_stats(cfg, wav_list, n_stats=100000):
+    """Calculates statistics of log-mel spectrogram features in a data source for normalization.
+
+    Args:
+        cfg: Configuration settings.
+        data_src: Data source class object.
+        n_stats: Maximum number of files to calculate statistics.
+    """
+    ### 使用するwaveファイル名前が書かれたファイル。
+    ### 全waveファイルリスト
+    path = "/work/ge43/e43020/master_project/data/wav"
+    data_src = [path + wav for wav in wav_list]
+
+    stats_data = data_src
+    n_stats = min(n_stats, len(stats_data))
+    logging.info(f'Calculating mean/std using random {n_stats} samples from training population {len(stats_data)} samples...')
+    sample_idxes = np.random.choice(range(len(stats_data)), size=n_stats, replace=False)
+    ds = WaveInLMSOutDataset(cfg, stats_data, labels=None, tfms=None)
+    X = [ds[i] for i in tqdm(sample_idxes)]
+    X = np.hstack(X)
+    norm_stats = np.array([X.mean(), X.std()])
+    logging.info(f'  ==> mean/std: {norm_stats}, {norm_stats.shape} <- {X.shape}')
+    return norm_stats
+
+class SliceWav(AdditionalDataBase):
+    def __init__(self, max_wav_seconds,cfg=None,phase=None) -> None:
+        super().__init__()
+        self.max_wav_len = int(max_wav_seconds*16000)
+    def process_data(self, data: Dict[str, Any]):
+        return {'wav': data['wav'][:, :self.max_wav_len]}
