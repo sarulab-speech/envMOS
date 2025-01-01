@@ -15,7 +15,7 @@ trainer_args:
   precision: 32
   gradient_clip_val: 1.0
   flush_logs_every_n_steps: 10
-  val_check_interval: 0.1
+  val_check_interval: 0.5
   accumulate_grad_batches: 2
   # strategy: ddp
 optimizer:
@@ -39,7 +39,7 @@ criterion:
       criterion:
         _target_: torch.nn.MSELoss
         reduction: 'none'
-      tau: 0.10
+      tau: 0.25
       mode: 'frame'
     -
       _target_: loss_function.ContrastiveLoss
