@@ -101,18 +101,26 @@ class PhonemeEncoder(nn.Module):
 class LDConditioner(nn.Module):
     def __init__(self,input_dim, judge_dim, num_judges):
         super().__init__()
-        self.judge_dim = judge_dim
-        self.num_judges = num_judges
-        self.judge_embedding = nn.Embedding(num_judges, self.judge_dim)
+        # self.judge_dim = judge_dim
+        # self.num_judges = num_judges
+        # self.judge_embedding = nn.Embedding(num_judges, self.judge_dim)
         self.input_dim = input_dim
 
         self.decoder_rnn = nn.LSTM(
-            input_size = self.input_dim + self.judge_dim,
+            input_size = self.input_dim,
             hidden_size = 512,
             num_layers = 1,
             batch_first = True,
             bidirectional = True
-        ) # linear?
+        )
+
+        # self.decoder_rnn = nn.LSTM(
+        #     input_size = self.input_dim + self.judge_dim,
+        #     hidden_size = 512,
+        #     num_layers = 1,
+        #     batch_first = True,
+        #     bidirectional = True
+        # ) # linear?
         # self.out_dim = 3072+256+128
         self.out_dim = self.decoder_rnn.hidden_size*2
 
@@ -120,11 +128,11 @@ class LDConditioner(nn.Module):
         return self.out_dim
 
     def forward(self, x, batch):
-        judge_ids = batch['judge_id']
+        # judge_ids = batch['judge_id']
         ### ssl特徴量の 768に、+600とか横に足される。
         ### batch? x フレーム x ssl or phoneme or ...
         concatenated_feature = torch.cat((x['ssl-feature'], x['phoneme-feature'].unsqueeze(1).expand(-1,x['ssl-feature'].size(1) ,-1)),dim=2)
-        concatenated_feature = torch.cat((concatenated_feature, self.judge_embedding(judge_ids).unsqueeze(1).expand(-1, concatenated_feature.size(1), -1)),dim=2)
+        # concatenated_feature = torch.cat((concatenated_feature, self.judge_embedding(judge_ids).unsqueeze(1).expand(-1, concatenated_feature.size(1), -1)),dim=2)
         decoder_output, (h, c) = self.decoder_rnn(concatenated_feature)
         return decoder_output
 
