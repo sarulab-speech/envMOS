@@ -4,6 +4,7 @@ import torch.nn as nn
 import os
 import fairseq
 import numpy as np
+import pandas as pd
 import scipy.stats
 import hydra
 from transformers import AdamW, get_linear_schedule_with_warmup
@@ -189,6 +190,9 @@ class UTMOSLightningModule(pl.LightningModule):
 
         truths = np.array(ts)
         preds = np.array(ps)
+        stacked_array = np.stack((truths, preds), axis=1)
+        df = pd.DataFrame(stacked_array, columns=['truths', 'preds'])
+        df.to_csv('output.csv', index=False)
 
         ### raw
         MSE = np.mean((truths - preds) ** 2)

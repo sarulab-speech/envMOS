@@ -20,7 +20,7 @@ trainer_args:
   # strategy: ddp
 optimizer:
   _target_: torch.optim.Adam
-  lr: 2e-5
+  lr: 2e-7
 scheduler:
   _target_: transformers.get_linear_schedule_with_warmup
   num_warmup_steps: 400
