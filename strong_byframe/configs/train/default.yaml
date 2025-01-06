@@ -39,7 +39,7 @@ criterion:
       criterion:
         _target_: torch.nn.MSELoss
         reduction: 'none'
-      tau: 0.25
+      tau: 0.05
       mode: 'frame'
     -
       _target_: loss_function.ContrastiveLoss
