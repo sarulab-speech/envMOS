@@ -87,6 +87,7 @@ class PhonemeEncoder(nn.Module):
         _, (ht, _) = self.encoder(seq)
         ### batch x sequence length (paddingされてるので、max(len(phonemes))) x 
         ### output, (h_n, c_n) が出力なので、 h_n だけを拾っている。
+
         feature = ht[-1] + ht[0]
         
         ### 3層 がbidirectionalなので6 x 出力次元
