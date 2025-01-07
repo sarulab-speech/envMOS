@@ -78,23 +78,10 @@ class PhonemeEncoder(nn.Module):
         for i in range(len(wavnames)):
             wavname = wavnames[i]
             feat = torch.load(f'/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/RoBERTa/{wavname.split("/")[-1].split(".")[0]}.pt', map_location="cuda:0")
-            lis.append(feat)
-            lens.append(len(feat))
-
-        caption_batch = torch.nn.utils.rnn.pad_sequence(lis, batch_first=True)
-        seq = caption_batch
-        ### 256次元に。　batch x len(phonemes) x 256
-        _, (ht, _) = self.encoder(seq)
-        ### batch x sequence length (paddingされてるので、max(len(phonemes))) x 
-        ### output, (h_n, c_n) が出力なので、 h_n だけを拾っている。
-
-        feature = ht[-1] + ht[0]
-        
-        ### 3層 がbidirectionalなので6 x 出力次元
-        ### なぜ第一層と最終層なんだ？ なぜoutputではないんだ？
-        ### batch x 256 (hidden size)
-        feature = self.linear(feature)
-        return {"phoneme-feature": feature}
+            lis.append(feat[0])
+        x = torch.stack(lis, dim=0)
+        print(x.size(), "12x1024だといい")
+        return {"phoneme-feature": x}
     def get_output_dim(self):
         return self.out_dim
 
@@ -102,9 +89,6 @@ class PhonemeEncoder(nn.Module):
 class LDConditioner(nn.Module):
     def __init__(self,input_dim, judge_dim, num_judges):
         super().__init__()
-        # self.judge_dim = judge_dim
-        # self.num_judges = num_judges
-        # self.judge_embedding = nn.Embedding(num_judges, self.judge_dim)
         self.input_dim = input_dim
 
         self.decoder_rnn = nn.LSTM(
@@ -114,15 +98,6 @@ class LDConditioner(nn.Module):
             batch_first = True,
             bidirectional = True
         )
-
-        # self.decoder_rnn = nn.LSTM(
-        #     input_size = self.input_dim + self.judge_dim,
-        #     hidden_size = 512,
-        #     num_layers = 1,
-        #     batch_first = True,
-        #     bidirectional = True
-        # ) # linear?
-        # self.out_dim = 3072+256+128
         self.out_dim = self.decoder_rnn.hidden_size*2
 
     def get_output_dim(self):
@@ -135,7 +110,16 @@ class LDConditioner(nn.Module):
         concatenated_feature = torch.cat((x['ssl-feature'], x['phoneme-feature'].unsqueeze(1).expand(-1,x['ssl-feature'].size(1) ,-1)),dim=2)
         # concatenated_feature = torch.cat((concatenated_feature, self.judge_embedding(judge_ids).unsqueeze(1).expand(-1, concatenated_feature.size(1), -1)),dim=2)
         decoder_output, (h, c) = self.decoder_rnn(concatenated_feature)
-        return decoder_output
+        # decoder_output は batch x frames x 1024
+        # 第一と最終フレームの出力のみ得る。
+        lis = []
+        for i in range(len(batch)):
+            output = decoder_output[i][0] + decoder_output[i][-1]
+            lis.append(output)
+        x = torch.stack(lis, dim=0)
+        # batch x 1024
+        print(x.size(), "12x1024だといい")
+        return x
 
 ### RELUで予測値算出
 class Projection(nn.Module):
