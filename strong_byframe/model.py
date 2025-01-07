@@ -59,16 +59,8 @@ class SSL_model(nn.Module):
 
 
 class PhonemeEncoder(nn.Module):
-    def __init__(self, hidden_dim, out_dim,n_lstm_layers, llm_dim) -> None:
+    def __init__(self, out_dim) -> None:
         super().__init__()
-        self.encoder = nn.LSTM(llm_dim, hidden_dim,
-                               num_layers=n_lstm_layers, dropout=0.1, batch_first=True, bidirectional=True)
-        self.linear = nn.Sequential(
-                ### input_dim は hidden_dim + hidden_dim*self.with_reference
-                ### input 256, outputは256
-                nn.Linear(hidden_dim, out_dim),
-                nn.ReLU()
-                )
         self.out_dim = out_dim
 
     def forward(self,batch):
@@ -80,7 +72,6 @@ class PhonemeEncoder(nn.Module):
             feat = torch.load(f'/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/RoBERTa/{wavname.split("/")[-1].split(".")[0]}.pt', map_location="cuda:0")
             lis.append(feat[0])
         x = torch.stack(lis, dim=0)
-        print(x.size(), "12x1024だといい")
         return {"phoneme-feature": x}
     def get_output_dim(self):
         return self.out_dim
@@ -104,21 +95,18 @@ class LDConditioner(nn.Module):
         return self.out_dim
 
     def forward(self, x, batch):
-        # judge_ids = batch['judge_id']
-        ### ssl特徴量の 768に、+600とか横に足される。
-        ### batch? x フレーム x ssl or phoneme or ...
+        # 12 x frame x 
         concatenated_feature = torch.cat((x['ssl-feature'], x['phoneme-feature'].unsqueeze(1).expand(-1,x['ssl-feature'].size(1) ,-1)),dim=2)
         # concatenated_feature = torch.cat((concatenated_feature, self.judge_embedding(judge_ids).unsqueeze(1).expand(-1, concatenated_feature.size(1), -1)),dim=2)
         decoder_output, (h, c) = self.decoder_rnn(concatenated_feature)
         # decoder_output は batch x frames x 1024
         # 第一と最終フレームの出力のみ得る。
         lis = []
-        for i in range(len(batch)):
+        for i in range(len(batch['wavname'])):
             output = decoder_output[i][0] + decoder_output[i][-1]
-            lis.append(output)
+            lis.append(output.unsqueeze(0))
         x = torch.stack(lis, dim=0)
         # batch x 1024
-        print(x.size(), "12x1024だといい")
         return x
 
 ### RELUで予測値算出

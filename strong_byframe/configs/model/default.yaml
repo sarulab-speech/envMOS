@@ -10,10 +10,7 @@ feature_extractors:
     cp_path: '/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/AudioNTT2022-BYOLA-64x96d2048.pth'
   -
     _target_: model.PhonemeEncoder
-    llm_dim: 1024
-    hidden_dim: 256
-    out_dim: 256
-    n_lstm_layers: 3
+    out_dim: 1024
 
 output_layers:
   -
