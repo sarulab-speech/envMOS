@@ -167,3 +167,4 @@ stacking/data
 .d*
 *.sh
 events.*
+*.txt
