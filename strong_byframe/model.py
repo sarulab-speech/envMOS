@@ -40,20 +40,15 @@ class SSL_model(nn.Module):
         self.to_melspec = to_melspec
 
     def forward(self,batch):
-        wavs = batch["wav"]
-        mean_mel = batch["mean_mel"][0]
-        std_mel = batch["std_mel"][0]
-        stats = [mean_mel, std_mel]
-        normalizer = PrecomputedNorm(stats)
+        wavnames = batch['wavname'] 
         lis = []
-        for wav in wavs:
-            lms = normalizer((self.to_melspec(wav) + torch.finfo(torch.float).eps).log())
-            features = self.model(lms.unsqueeze(0))[0]
-            lis.append(features)
+        for i in range(len(wavnames)):
+            wavname = wavnames[i]
+            feat = torch.load(f'/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/byola_frame/{wavname.split("/")[-1].split(".")[0]}.pt', map_location="cuda:0")
+            lis.append(feat[0])
         x = torch.stack(lis, dim=0)
-        ### batch x time x 3072
+        # batch x time x 1024
         return {"ssl-feature":x}
-
     def get_output_dim(self):
         return self.out_dim
 
@@ -66,12 +61,12 @@ class PhonemeEncoder(nn.Module):
     def forward(self,batch):
         wavnames = batch['wavname'] 
         lis = []
-        lens = []
         for i in range(len(wavnames)):
             wavname = wavnames[i]
             feat = torch.load(f'/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/RoBERTa/{wavname.split("/")[-1].split(".")[0]}.pt', map_location="cuda:0")
             lis.append(feat[0])
         x = torch.stack(lis, dim=0)
+        # batch x 1024
         return {"phoneme-feature": x}
     def get_output_dim(self):
         return self.out_dim

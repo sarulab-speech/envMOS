@@ -76,9 +76,11 @@ class DataModule(pl.LightningDataModule):
             mean_df['listener_name']= f"MEAN_LISTENER_{domain}"
             mean_df['domain'] = domain
 
-            stat_arr = calc_norm_stats(cfg=load_yaml_config("/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/config.yaml"), wav_list=list(mean_df["filename"]))
-            mean_mel = stat_arr[0]
-            std_mel = stat_arr[1]
+            # stat_arr = calc_norm_stats(cfg=load_yaml_config("/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/config.yaml"), wav_list=list(mean_df["filename"]))
+            # mean_mel = stat_arr[0]
+            # std_mel = stat_arr[1]
+            mean_mel = 0
+            std_mel = 1
             listener_df["mean_mel"] = mean_mel
             listener_df["std_mel"] = std_mel
             mean_df["mean_mel"] = mean_mel
