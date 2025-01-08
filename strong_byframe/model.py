@@ -103,7 +103,7 @@ class LDConditioner(nn.Module):
         # 第一と最終フレームの出力のみ得る。
         lis = []
         for i in range(len(batch['wavname'])):
-            output = decoder_output[i][0] + decoder_output[i][-1]
+            output = (decoder_output[i][0] + decoder_output[i][-1]) / 2
             lis.append(output.unsqueeze(0))
         x = torch.stack(lis, dim=0)
         # batch x 1024

@@ -23,7 +23,11 @@ class ContrastiveLoss(nn.Module):
         # 差行列になるらしい。
         pred_diff = pred_score.unsqueeze(1) - pred_score.unsqueeze(0)
         ### 行列間で差をとっているのか。
+        ### 最大の損失？？
+        ### margin = 0.1だが?
+        ### marginより小さい部分は0にして差行列取得
         loss = torch.maximum(torch.zeros(gt_diff.shape).to(gt_diff.device), torch.abs(pred_diff - gt_diff) - self.margin) 
+        ### 全要素で平均をとって２で割る。
         loss = loss.mean().div(2)
         return loss
 
@@ -48,6 +52,7 @@ class ClippedMSELoss(nn.Module):
         ### MSEloss
         loss = self.criterion(y_hat, label)
         threshold = torch.abs(y_hat - label) > self.tau
+        ### thresholdを超えてるものはその値、超えてないものは0として平均とる。
         loss = torch.mean(threshold * loss)
         return loss
 

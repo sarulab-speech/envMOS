@@ -4,7 +4,7 @@ data_sources:
   -
     name: "main"
     train_mos_list_path: data/sets/train.txt
-    val_mos_list_path: data/sets/val.txt
+    val_mos_list_path: data/sets/train.txt
     test_mos_list_path: data/sets/train.txt
     wav_dir: data/wav
     data_dir: data/
