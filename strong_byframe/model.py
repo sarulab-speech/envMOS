@@ -29,7 +29,6 @@ def load_ssl_model(cfg_path, cp_path):
     model = AudioNTT2022(n_mels=cfg.n_mels, d=cfg.feature_d)
     load_pretrained_weights(model, cp_path)
     out_dim = 3072
-
     return SSL_model(model, out_dim, to_melspec)
 
 class SSL_model(nn.Module):
@@ -51,8 +50,7 @@ class SSL_model(nn.Module):
         return {"ssl-feature":x}
     def get_output_dim(self):
         return self.out_dim
-
-
+    
 class PhonemeEncoder(nn.Module):
     def __init__(self, out_dim) -> None:
         super().__init__()
@@ -70,13 +68,11 @@ class PhonemeEncoder(nn.Module):
         return {"phoneme-feature": x}
     def get_output_dim(self):
         return self.out_dim
-
 ### listener id を加えて、LSTMから特徴量抽出
 class LDConditioner(nn.Module):
     def __init__(self,input_dim, judge_dim, num_judges):
         super().__init__()
         self.input_dim = input_dim
-
         self.decoder_rnn = nn.LSTM(
             input_size = self.input_dim,
             hidden_size = 512,
@@ -85,10 +81,8 @@ class LDConditioner(nn.Module):
             bidirectional = True
         )
         self.out_dim = self.decoder_rnn.hidden_size*2
-
     def get_output_dim(self):
         return self.out_dim
-
     def forward(self, x, batch):
         # 12 x frame x 
         concatenated_feature = torch.cat((x['ssl-feature'], x['phoneme-feature'].unsqueeze(1).expand(-1,x['ssl-feature'].size(1) ,-1)),dim=2)
@@ -103,7 +97,7 @@ class LDConditioner(nn.Module):
         x = torch.stack(lis, dim=0)
         # batch x 1024
         return x
-
+    
 ### RELUで予測値算出
 class Projection(nn.Module):
     ### 予測値算出
