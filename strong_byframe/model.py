@@ -44,7 +44,7 @@ class SSL_model(nn.Module):
         lis = []
         for i in range(len(wavnames)):
             wavname = wavnames[i]
-            feat = torch.load(f'/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/byola_frame/{wavname.split(".")[0]}.pt', map_location="cuda:0")
+            feat = torch.load(f'/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong/data/byola_frame_rep/{wavname.split(".")[0]}.pt', map_location="cuda:0")
             lis.append(feat[0])
         x = torch.stack(lis, dim=0)
         # batch x time x 1024
