@@ -79,7 +79,7 @@ class UTMOSLightningModule(pl.LightningModule):
         # このreturnがlogに残るのか
         return {
             "loss": loss,
-            "outputs": outputs.cpu().numpy()[0]*5+5,
+            "outputs": outputs.cpu().numpy()[0]*2+3,
             "filename": batch["wavname"][0],
             "domain": batch["domain"][0],
             "raw_avg_score": batch["raw_avg_score"][0].item()
@@ -121,8 +121,8 @@ class UTMOSLightningModule(pl.LightningModule):
             outputs = outputs.mean(dim=1).squeeze(-1)
         return {
             "loss": loss,
-            "outputs": outputs.cpu().detach().numpy()[0]*5+5,
-            "labels": labels.cpu().detach().numpy()[0]*5+5,
+            "outputs": outputs.cpu().detach().numpy()[0]*2+3,
+            "labels": labels.cpu().detach().numpy()[0]*2+3,
             "filename": filenames[0],
             "domain": batch["domain"][0],
             "i_cv": batch["i_cv"][0],

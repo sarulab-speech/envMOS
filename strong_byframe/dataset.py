@@ -64,15 +64,24 @@ class DataModule(pl.LightningDataModule):
         ## main, odd, external 全て含まれてたら全部合わせた dfsができる。
         for path, domain in zip(paths,domains):
             df = pd.read_csv(path,names=["csv_name", "filename", "rating", "model", "caption", "temp_flag"])
+            bins_15 = [-1, 1, 3, 6, 8, 10]  # 区切り値
+            labels_15 = [1, 2, 3, 4, 5]  # 新しい値
+            df['rating'] = pd.cut(df['rating'], bins=bins_15, labels=labels_15)
+            
+            print(df["rating"], "df[rating]")
+            df['rating'] = df["rating"].cat.codes + 1
+            print(df["rating"], "df[rating] to int")
+
             listener_df = pd.DataFrame()
             listener_df['filename'] = df['filename']
             listener_df['rating'] = df['rating']
+            print(listener_df["rating"], "listener_df['rating']")
             # ZPGlxO3OmLRp
             # listener_df['listener_name'] = df['listener_info'].str.split('_').str[2]
             listener_df['listener_name'] = df['csv_name']
             listener_df['domain'] = domain
-            bins = [-1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-            lbls = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10']
+            bins = [0, 2, 3, 4, 5]
+            lbls = ['1-2', '2-3', '3-4', '4-5']
             listener_df['rating_category'] = pd.cut(listener_df['rating'], bins=bins, labels=lbls)
             listener_df['num_class'] = listener_df.groupby('rating_category')['rating_category'].transform('count')
             # 音ファイル単位でのmean
@@ -209,8 +218,8 @@ class TestDataModule(DataModule):
             df['filename'] = df_raw["filename"]
             df['rating'] = df_raw["rating"]
 
-            bins = [-1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-            lbls = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10']
+            bins = [0, 2, 3, 4, 5]
+            lbls = ['1-2', '2-3', '3-4', '4-5']
             df['rating_category'] = pd.cut(df['rating'], bins=bins, labels=lbls)
             df['num_class'] = df.groupby('rating_category')['rating_category'].transform('count')
 
@@ -471,7 +480,8 @@ class NormalizeScore(AdditionalDataBase):
         self.normalize_to_min = normalize_to_min
     def process_data(self, data: Dict[str, Any]):
         score = data['score']
-        score = (score - (self.org_max + self.org_min)/2.0) / 5
+        # score = (score - (self.org_max + self.org_min)/2.0) / 5
+        score = (score - 3) / 2
         return {'score': score}
 
 ### データ拡張か。でも、音ファイルだけなのか。一回に入力する音ファイルを２つにするだけで、音、MOS値とかの組みが入るわけではないのか？
