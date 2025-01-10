@@ -65,7 +65,7 @@ class UTMOSLightningModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         ### self()はforwardと同じ。
         outputs = self(batch)
-        loss = self.criterion(outputs, batch['score'])
+        loss = self.criterion(outputs, batch['score'], batch["num_class"])
         self.log(
             "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True, batch_size=self.cfg.train.train_batch_size
         )
@@ -73,7 +73,7 @@ class UTMOSLightningModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         outputs = self(batch)
-        loss = self.criterion(outputs, batch['score'])
+        loss = self.criterion(outputs, batch['score'], batch["num_class"])
         if outputs.dim() > 1:
             outputs = outputs.mean(dim=1).squeeze(-1)
         # このreturnがlogに残るのか
@@ -111,7 +111,7 @@ class UTMOSLightningModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         outputs = self(batch)
-        loss = self.criterion(outputs, batch['score'])
+        loss = self.criterion(outputs, batch['score'], batch["num_class"])
         print(outputs, "output")
         print(batch['score'])
         labels = batch['score']

@@ -71,11 +71,17 @@ class DataModule(pl.LightningDataModule):
             # listener_df['listener_name'] = df['listener_info'].str.split('_').str[2]
             listener_df['listener_name'] = df['csv_name']
             listener_df['domain'] = domain
+            bins = [-1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            lbls = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10']
+            listener_df['rating_category'] = pd.cut(listener_df['rating'], bins=bins, labels=lbls)
+            listener_df['num_class'] = listener_df.groupby('rating_category')['rating_category'].transform('count')
             # 音ファイル単位でのmean
             mean_df = pd.DataFrame(listener_df.groupby('filename',as_index=False)['rating'].mean())
             mean_df['listener_name']= f"MEAN_LISTENER_{domain}"
             mean_df['domain'] = domain
 
+            mean_df['rating_category'] = pd.cut(mean_df['rating'], bins=bins, labels=lbls)
+            mean_df['num_class'] = mean_df.groupby('rating_category')['rating_category'].transform('count')
             # stat_arr = calc_norm_stats(cfg=load_yaml_config("/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/config.yaml"), wav_list=list(mean_df["filename"]))
             # mean_mel = stat_arr[0]
             # std_mel = stat_arr[1]
@@ -203,6 +209,11 @@ class TestDataModule(DataModule):
             df['filename'] = df_raw["filename"]
             df['rating'] = df_raw["rating"]
 
+            bins = [-1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            lbls = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10']
+            df['rating_category'] = pd.cut(df['rating'], bins=bins, labels=lbls)
+            df['num_class'] = df.groupby('rating_category')['rating_category'].transform('count')
+
             ### mean_listerに評価させている？
             df['listener_name'] = f'MEAN_LISTENER_{domain}'
             df['domain'] = domain
@@ -329,6 +340,7 @@ class MyDataset(Dataset):
         listener_id = selected_row['listener_id']
         mean_mel = selected_row["mean_mel"]
         std_mel = selected_row["std_mel"]
+        num_class = selected_row["num_class"]
         
         ### i_cvはクロスバリデーションの時にどうやって使うんだ
         i_cv = selected_row['i_cv'] if 'i_cv' in selected_row else -1
@@ -353,7 +365,9 @@ class MyDataset(Dataset):
             'utt_avg_score': utt_avg_score,
             'sys_avg_score': sys_avg_score,
             'mean_mel': mean_mel,
-            'std_mel': std_mel
+            'std_mel': std_mel,
+            'num_class': num_class
+            
         }
         for additional_data_instances in self.additional_datas:
             ### dataに対して、additional_data_instancesの各処理を施す。
@@ -379,6 +393,7 @@ class MyDataset(Dataset):
         sys_avg_scores = [b['sys_avg_score'] for b in batch]
         mean_mels = [b['mean_mel'] for b in batch]
         std_mels = [b['std_mel'] for b in batch]
+        num_classes = [b['num_class'] for b in batch]
         scores = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(scores)], dim=0)
         ### 中身をtorch.float の tensorに変換。その後、リストにして、stackでテンソルに。
         ### 全体を通してやりたいことは、中身をtensorに変換かな。
@@ -389,7 +404,7 @@ class MyDataset(Dataset):
         std_mels = torch.stack([torch.tensor(x,dtype=torch.float) for x in list(std_mels)], dim=0)
         domains = torch.stack([torch.tensor(x) for x in list(domains)], dim=0)
         judge_id = torch.stack([torch.tensor(x) for x in list(judge_id)], dim=0)
-
+        num_classes = torch.stack([torch.tensor(x) for x in list(num_classes)], dim=0)
         wavs = list(wavs)
         max_len = max(wavs, key=lambda x: x.shape[1]).shape[1]
         wavs_lengths = torch.from_numpy(np.array([wav.size(0) for wav in wavs]))
@@ -422,7 +437,8 @@ class MyDataset(Dataset):
             'i_cv': i_cvs,
             'set_name': set_names,
             'mean_mel': mean_mels,
-            'std_mel': std_mels
+            'std_mel': std_mels,
+            'num_class': num_classes
         } # judge id, domain, averaged score
         for additional_data_instance in self.additional_datas:
             ### このcollate_n は、AdditionalDataBase()内の関数。
