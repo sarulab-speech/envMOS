@@ -14,7 +14,7 @@ use_data:
 datamodule: 
   _target_: dataset.DataModule
 #### only_meanは、平均値しか入手できないシナリオのこと。
-only_mean: True
+only_mean: False
 additional_datas:
   -
     _target_: dataset.NormalizeScore
