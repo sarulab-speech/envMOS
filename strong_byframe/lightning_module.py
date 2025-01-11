@@ -116,7 +116,6 @@ class UTMOSLightningModule(pl.LightningModule):
         print(batch['score'])
         labels = batch['score']
         filenames = batch['wavname']
-        loss = self.criterion(outputs, labels)
         if outputs.dim() > 1:
             outputs = outputs.mean(dim=1).squeeze(-1)
         return {

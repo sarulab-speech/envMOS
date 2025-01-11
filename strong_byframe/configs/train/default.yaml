@@ -24,7 +24,7 @@ optimizer:
 scheduler:
   _target_: transformers.get_linear_schedule_with_warmup
   num_warmup_steps: 400
-  num_training_steps: 150
+  num_training_steps: 15000
 early_stopping:
   patience: 100
 

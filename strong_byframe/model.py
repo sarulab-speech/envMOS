@@ -66,6 +66,7 @@ class PhonemeEncoder(nn.Module):
         x = torch.stack(lis, dim=0)
         # batch x 1024
         return {"phoneme-feature": x}
+
     def get_output_dim(self):
         return self.out_dim
 ### listener id を加えて、LSTMから特徴量抽出

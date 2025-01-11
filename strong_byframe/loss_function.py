@@ -30,14 +30,18 @@ class ContrastiveLoss(nn.Module):
         loss = torch.maximum(torch.zeros(gt_diff.shape).to(gt_diff.device), torch.abs(pred_diff - gt_diff) - self.margin) 
         ### 読み込んで、行列に。torch.outer(vector1, vector2)。　ルートとって、　要素積をとる。
 
+
         # 読み込んで unsqueeze, torch.mul(vector1, vector2)で要素ごとの積
         ### 12 x 1
         num_class = num_class
         weights = (1 - self.beta) / (1 - torch.pow(self.beta, num_class))
+        weights = weights / torch.sum(weights)
         class_mat = torch.outer(weights, weights)
         class_mat = torch.sqrt(class_mat)
 
         loss = torch.mul(loss, class_mat)
+
+
         ### 全要素で平均をとって２で割る。
         loss = loss.mean().div(2)
         return loss
@@ -66,10 +70,14 @@ class ClippedMSELoss(nn.Module):
         threshold = torch.abs(y_hat - label) > self.tau
         ### lossに書くクラスの頻度の逆数をかける
         # 読み込んで unsqueeze, torch.mul(vector1, vector2)で要素ごとの積
-        ### 12 x 1
+
+
+        # ### 12 x 1
         num_class = num_class.unsqueeze(1)
         weights = (1 - self.beta) / (1 - torch.pow(self.beta, num_class))
+        weights = weights / torch.sum(weights)
         loss = torch.mul(loss, weights)
+
 
         ### thresholdを超えてるものはその値、超えてないものは0として平均とる。
         loss = torch.mean(threshold * loss)
