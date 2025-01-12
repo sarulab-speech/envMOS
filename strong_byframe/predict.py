@@ -44,12 +44,12 @@ def predict(cfg):
         ckpt_path=ckpt_path
     )
     print("================================")
-    # trainer.test(
-    #     lightning_module,
-    #     verbose=True,
-    #     datamodule=test_datamodule,
-    #     ckpt_path=ckpt_path
-    # )
+    trainer.test(
+        lightning_module,
+        verbose=True,
+        datamodule=test_datamodule,
+        ckpt_path=ckpt_path
+    )
     print("+++++++++++++++++++++++++")
 
 if __name__ == "__main__":

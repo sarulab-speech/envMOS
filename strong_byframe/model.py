@@ -71,28 +71,38 @@ class PhonemeEncoder(nn.Module):
         return self.out_dim
 ### listener id を加えて、LSTMから特徴量抽出
 class LDConditioner(nn.Module):
-    def __init__(self,input_dim, judge_dim, num_judges):
+    def __init__(self,input_dim, judge_dim, num_judges, listener_emb):
         super().__init__()
         self.input_dim = input_dim
-        self.judge_dim = judge_dim
-        self.num_judges = num_judges
-        self.judge_embedding = nn.Embedding(num_judges, self.judge_dim)
-
-        self.decoder_rnn = nn.LSTM(
-            input_size = self.input_dim + self.judge_dim, 
-            hidden_size = 512,
-            num_layers = 1,
-            batch_first = True,
-            bidirectional = True
-        )
+        self.listener_emb = listener_emb
+        if listener_emb:
+            self.judge_dim = judge_dim
+            self.num_judges = num_judges
+            self.judge_embedding = nn.Embedding(num_judges, self.judge_dim)
+            self.decoder_rnn = nn.LSTM(
+                input_size = self.input_dim + self.judge_dim, 
+                hidden_size = 512,
+                num_layers = 1,
+                batch_first = True,
+                bidirectional = True
+            )
+        else: 
+            self.decoder_rnn = nn.LSTM(
+                input_size = self.input_dim, 
+                hidden_size = 512,
+                num_layers = 1,
+                batch_first = True,
+                bidirectional = True
+            )
         self.out_dim = self.decoder_rnn.hidden_size*2
     def get_output_dim(self):
         return self.out_dim
     def forward(self, x, batch):
-        judge_ids = batch['judge_id']
-        # 12 x frame x 
+        # 12 x frame x ???
         concatenated_feature = torch.cat((x['ssl-feature'], x['phoneme-feature'].unsqueeze(1).expand(-1,x['ssl-feature'].size(1) ,-1)),dim=2)
-        concatenated_feature = torch.cat((concatenated_feature, self.judge_embedding(judge_ids).unsqueeze(1).expand(-1, concatenated_feature.size(1), -1)),dim=2)
+        if self.listener_emb:
+            judge_ids = batch['judge_id']
+            concatenated_feature = torch.cat((concatenated_feature, self.judge_embedding(judge_ids).unsqueeze(1).expand(-1, concatenated_feature.size(1), -1)),dim=2)
         decoder_output, (h, c) = self.decoder_rnn(concatenated_feature)
         # decoder_output は batch x frames x 1024
         # 第一と最終フレームの出力のみ得る。
@@ -124,10 +134,8 @@ class Projection(nn.Module):
     
     def forward(self, x, batch):
         output = self.net(x)
-        ### 1024がinput_dim 
-        ### hiddenが2048. 最後に2048から1.
+        ### 1024がinput_dim, hiddenが2048. 最後に2048から1.
         ### では、batch x flame x 1 が出てくるのか。
-        # range clipping
         return output
     def get_output_dim(self):
         return self.output_dim

@@ -170,8 +170,6 @@ class UTMOSLightningModule(pl.LightningModule):
         return hydra.utils.instantiate(self.cfg.train.criterion,_recursive_=True)
 
     def calc_score(self, outputs, verbose=False):
-
-
         predictions = {}
         true_MOS = {}
         for out in outputs:

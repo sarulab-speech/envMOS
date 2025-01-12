@@ -5,6 +5,7 @@ WavLM: False
 
 feature_extractors:
   -
+    read: True
     _target_: model.load_ssl_model
     cfg_path: '/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/config_v2.yaml'
     cp_path: '/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/AudioNTT2022-BYOLA-64x96d2048.pth'
@@ -17,6 +18,7 @@ output_layers:
     _target_: model.LDConditioner
     judge_dim: 128
     num_judges: 3000
+    listener_emb: True 
   -
    _target_: model.Projection
    hidden_dim: 2048

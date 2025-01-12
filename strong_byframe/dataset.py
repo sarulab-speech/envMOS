@@ -24,7 +24,6 @@ from byol_a.dataset import WaveInLMSOutDataset
 class DataModule(pl.LightningDataModule):
     def __init__(self, cfg):
         super().__init__()
-
         self.cfg = cfg
 
     def setup(self, stage):
@@ -36,12 +35,8 @@ class DataModule(pl.LightningDataModule):
         for datasource in data_sources:
             ##  wavdir["main"] = cwd/data/phase1-main/DATA/wav/
             self.wavdir[datasource.name] = join(ocwd, datasource['wav_dir'])  
-        # 一つのdatasource は、 "name": main から "outfile": answer-main.csv まで。
-        # の辞書
         self.datasources = data_sources
-        ### train_mos_list_path から、*.wavとMOS値入手
-        # for 文を使っているが、train_mos_list_path: data/phase1-main/DATA/sets/TRAINSET　のみに対して反応。
-        # main, odd, external のそれぞれのtrain_path
+
         train_paths = [join(ocwd,data_source.train_mos_list_path) for data_source in data_sources if hasattr(data_source,'train_mos_list_path')]
         val_paths = [join(ocwd,data_source.val_mos_list_path) for data_source in data_sources if hasattr(data_source,'val_mos_list_path')]
         ### data_source.nameは、main, oddとか。
@@ -50,11 +45,8 @@ class DataModule(pl.LightningDataModule):
 
         self.mos_df = {}
         ### TRAINSETから、扱いやすい形のcsvへ加工
-        ### ,filename,rating,listener_name,domain,listener_id,domain_id 
         self.mos_df['train'] = self.get_mos_df(train_paths,domains_train,self.cfg.dataset.only_mean)
         self.mos_df['val'] = self.get_mos_df(val_paths,domains_val,only_mean=True,id_reference=self.mos_df['train'])
-        ###  ,filename,rating,listener_name,domain,listener_id,domain_id
-        ### 9,sys0eb39-utt4745b38.wav,3.0,oJgQdRV65lnW,main,9,0
         self.mos_df['train'].to_csv("listener_embedding_lookup.csv")
        
 
@@ -67,30 +59,30 @@ class DataModule(pl.LightningDataModule):
             listener_df = pd.DataFrame()
             listener_df['filename'] = df['filename']
             listener_df['rating'] = df['rating']
-            # ZPGlxO3OmLRp
-            # listener_df['listener_name'] = df['listener_info'].str.split('_').str[2]
             listener_df['listener_name'] = df['csv_name']
             listener_df['domain'] = domain
-            bins = [-1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-            lbls = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10']
-            listener_df['rating_category'] = pd.cut(listener_df['rating'], bins=bins, labels=lbls)
-            listener_df['num_class'] = listener_df.groupby('rating_category')['rating_category'].transform('count')
             # 音ファイル単位でのmean
             mean_df = pd.DataFrame(listener_df.groupby('filename',as_index=False)['rating'].mean())
             mean_df['listener_name']= f"MEAN_LISTENER_{domain}"
             mean_df['domain'] = domain
 
-            mean_df['rating_category'] = pd.cut(mean_df['rating'], bins=bins, labels=lbls)
-            mean_df['num_class'] = mean_df.groupby('rating_category')['rating_category'].transform('count')
-            # stat_arr = calc_norm_stats(cfg=load_yaml_config("/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/config.yaml"), wav_list=list(mean_df["filename"]))
-            # mean_mel = stat_arr[0]
-            # std_mel = stat_arr[1]
             mean_mel = 0
             std_mel = 1
+            if self.cfg.model.feature_extractors.read == False:
+                stat_arr = calc_norm_stats(cfg=load_yaml_config("/work/ge43/e43020/master_project/UTMOS_BYOL-A/envMOS/strong_byframe/config.yaml"), wav_list=list(mean_df["filename"]))
+                mean_mel = stat_arr[0]
+                std_mel = stat_arr[1]
             listener_df["mean_mel"] = mean_mel
             listener_df["std_mel"] = std_mel
             mean_df["mean_mel"] = mean_mel
             mean_df["std_mel"] = std_mel
+
+            bins = [-1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            lbls = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10']
+            listener_df['rating_category'] = pd.cut(listener_df['rating'], bins=bins, labels=lbls)
+            listener_df['num_class'] = listener_df.groupby('rating_category')['rating_category'].transform('count')
+            mean_df['rating_category'] = pd.cut(mean_df['rating'], bins=bins, labels=lbls)
+            mean_df['num_class'] = mean_df.groupby('rating_category')['rating_category'].transform('count')
             if only_mean:
                 dfs.append(mean_df)
             else:
@@ -186,7 +178,6 @@ class TestDataModule(DataModule):
             ### なんでonly_meanがtrue?
             self.mos_df['val'] = self.get_mos_df(val_paths,domains_val,only_mean=True,id_reference=self.mos_df['train'])
         elif self.set_name == 'test':
-            ### only_mean == False かな。trainと同じ話者からはidを参考にできるようにしているのか。
             self.mos_df['val'] = self.get_test_df(val_paths,domains_val,id_reference=self.mos_df['train'])
         elif self.set_name == 'test_post':
             self.mos_df['val'] = self.get_mos_df(val_paths,domains_val,only_mean=True,id_reference=self.mos_df['train'])
@@ -213,8 +204,8 @@ class TestDataModule(DataModule):
             lbls = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-8', '8-9', '9-10']
             df['rating_category'] = pd.cut(df['rating'], bins=bins, labels=lbls)
             df['num_class'] = df.groupby('rating_category')['rating_category'].transform('count')
-
-            ### mean_listerに評価させている？
+            
+            ### mean_listerに評価させている
             df['listener_name'] = f'MEAN_LISTENER_{domain}'
             df['domain'] = domain
             dfs.append(df)

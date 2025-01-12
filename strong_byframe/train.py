@@ -53,19 +53,19 @@ def train(cfg):
     )
 
     datamodule = hydra.utils.instantiate(cfg.dataset.datamodule,cfg=cfg,_recursive_=False)
-    # test_datamodule = TestDataModule(cfg=cfg, i_cv=0, set_name='test')
+    test_datamodule = TestDataModule(cfg=cfg, i_cv=0, set_name='test')
     lightning_module = UTMOSLightningModule(cfg)    
     
     trainer.fit(lightning_module, datamodule=datamodule)
     print(checkpoint_callback.best_model_path)
-    # if debug:
-    #     trainer.test(lightning_module, datamodule=datamodule)
-    #     trainer.test(lightning_module, datamodule=test_datamodule)
-    # else:
-        # trainer.test(lightning_module, datamodule=datamodule,ckpt_path=checkpoint_callback.best_model_path)
-        # trainer.test(lightning_module, datamodule=test_datamodule,ckpt_path=checkpoint_callback.best_model_path)
-        # if cfg.train.use_wandb:
-        #     wandb.save(checkpoint_callback.best_model_path)
+    if debug:
+        trainer.test(lightning_module, datamodule=datamodule)
+        trainer.test(lightning_module, datamodule=test_datamodule)
+    else:
+        trainer.test(lightning_module, datamodule=datamodule,ckpt_path=checkpoint_callback.best_model_path)
+        trainer.test(lightning_module, datamodule=test_datamodule,ckpt_path=checkpoint_callback.best_model_path)
+        if cfg.train.use_wandb:
+            wandb.save(checkpoint_callback.best_model_path)
 
 if __name__ == "__main__":
     train()

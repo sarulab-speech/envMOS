@@ -42,7 +42,9 @@ criterion:
       tau: 0.25
       mode: 'frame'
       beta: 0.99
+      cbl: True
     -
       _target_: loss_function.ContrastiveLoss
       margin: 0.1
       beta: 0.99
+      cbl: True

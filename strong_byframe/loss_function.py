@@ -9,10 +9,11 @@ class ContrastiveLoss(nn.Module):
         margin: non-neg value, the smaller the stricter the loss will be, default: 0.2        
         
     '''
-    def __init__(self, margin, beta):
+    def __init__(self, margin, beta, cbl):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
         self.beta = beta
+        self.cbl = cbl
     
     def forward(self, pred_score, gt_score, num_class):
         ### 3次元以上なら。 batch x flame x score
@@ -24,24 +25,17 @@ class ContrastiveLoss(nn.Module):
         # 差行列になるらしい。
         pred_diff = pred_score.unsqueeze(1) - pred_score.unsqueeze(0)
         ### 行列間で差をとっているのか。
-        ### 最大の損失？？
-        ### margin = 0.1だが?
         ### marginより小さい部分は0にして差行列取得
         loss = torch.maximum(torch.zeros(gt_diff.shape).to(gt_diff.device), torch.abs(pred_diff - gt_diff) - self.margin) 
         ### 読み込んで、行列に。torch.outer(vector1, vector2)。　ルートとって、　要素積をとる。
-
-
         # 読み込んで unsqueeze, torch.mul(vector1, vector2)で要素ごとの積
         ### 12 x 1
-        num_class = num_class
-        weights = (1 - self.beta) / (1 - torch.pow(self.beta, num_class))
-        weights = weights / torch.sum(weights)
-        class_mat = torch.outer(weights, weights)
-        class_mat = torch.sqrt(class_mat)
-
-        loss = torch.mul(loss, class_mat)
-
-
+        if self.cbl:
+            weights = (1 - self.beta) / (1 - torch.pow(self.beta, num_class))
+            weights = weights / torch.sum(weights)
+            class_mat = torch.outer(weights, weights)
+            class_mat = torch.sqrt(class_mat)
+            loss = torch.mul(loss, class_mat)
         ### 全要素で平均をとって２で割る。
         loss = loss.mean().div(2)
         return loss
@@ -51,34 +45,26 @@ class ClippedMSELoss(nn.Module):
     """
     clipped MSE loss for listener-dependent model
     """
-    def __init__(self, criterion,tau, mode, beta):
+    def __init__(self, criterion, tau, mode, beta, cbl):
         super(ClippedMSELoss, self).__init__()
         self.tau = torch.tensor(tau,dtype=torch.float)
-
         self.criterion = criterion
         self.mode = mode
         self.beta = beta
-
+        self.cbl = cbl
 
     def forward_criterion(self, y_hat, label, num_class):
         ### batch x flame x 1 (score)
         ### squeeze で最後の次元を削除
-        
         y_hat = y_hat.squeeze(-1)
         ### MSEloss
         loss = self.criterion(y_hat, label)
         threshold = torch.abs(y_hat - label) > self.tau
-        ### lossに書くクラスの頻度の逆数をかける
-        # 読み込んで unsqueeze, torch.mul(vector1, vector2)で要素ごとの積
-
-
-        # ### 12 x 1
-        num_class = num_class.unsqueeze(1)
-        weights = (1 - self.beta) / (1 - torch.pow(self.beta, num_class))
-        weights = weights / torch.sum(weights)
-        loss = torch.mul(loss, weights)
-
-
+        if self.cbl:
+            num_class = num_class.unsqueeze(1)
+            weights = (1 - self.beta) / (1 - torch.pow(self.beta, num_class))
+            weights = weights / torch.sum(weights)
+            loss = torch.mul(loss, weights)
         ### thresholdを超えてるものはその値、超えてないものは0として平均とる。
         loss = torch.mean(threshold * loss)
         return loss
